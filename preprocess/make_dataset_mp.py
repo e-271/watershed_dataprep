@@ -4,43 +4,12 @@ import pandas as pd
 import numpy as np
 import argparse
 
-
 import os.path
 from multiprocessing import Process, Manager
 import sys
 import time
 import itertools 
 from tqdm import tqdm
-
-
-argParser = argparse.ArgumentParser()
-argParser.add_argument("--nw", default=32, type=int, help="number of workers (processes)")
-argParser.add_argument("--buf", default=100, type=int, help="buffer size per process")
-argParser.add_argument("--pop", default="AFR", type=str)
-argParser.add_argument("--vep_dir", default='/oak/stanford/groups/smontgom/erobb/data/vep', type=str)
-argParser.add_argument("--data_dir", default='/oak/stanford/groups/smontgom/erobb/data/watershed', type=str)
-argParser.add_argument("--cadd", default="/oak/stanford/groups/smontgom/erobb/data/watershed/whole_genome_SNVs_inclAnno.tsv.gz", type=str)
-argParser.add_argument("--gencode", default="/oak/stanford/groups/smontgom/erobb/data/watershed/gencode.v43.chr_patch_hapl_scaff.annotation.exons.protein_lincRNA.gtf", type=str)
-
-args = argParser.parse_args()
-pop = args.pop
-vep_dir, data_dir = args.vep_dir, args.data_dir
-CADD_FILE = args.cadd
-
-
-vcf_in = f"AF.all.{pop}.hg38a.ID.ba.VEP.rare.vcf"
-tsv_out = f'AF.all.{pop}.hg38a.ID.ba.VEP.rare.ws.tsv'
-gene_outliers = f'gene_outliers_{pop}.tsv'
-vcf_file = f"{vep_dir}/{vcf_in}"
-#eout_file = f"{data_dir}/eOutlier_scores_{pop}_t3.txt"
-eout_file = f"/oak/stanford/groups/smontgom/erobb/data/watershed/{pop}_exprResiduals.tsv"
-eout_keep_file = f"{data_dir}/ids_outlier_filtered_{pop}_t3f75.txt"
-
-
-vep_fields = 'Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|Existing_variation|DISTANCE|STRAND|FLAGS|SYMBOL_SOURCE|HGNC_ID|LoF|LoF_filter|LoF_flags|LoF_info'.split("|")
-cadd_anno = ["GC", "CpG", "SIFTcat", "SIFTval","PolyPhenCat",
-             "PolyPhenVal", "bStatistic", "priPhCons","mamPhCons","verPhCons",
-             "priPhyloP","mamPhyloP","verPhyloP","GerpN","GerpS","PHRED"]
 
 
 # TODO are we interested in:
@@ -77,7 +46,7 @@ def to_cat(var, cat):
     return pd.DataFrame(np.isin(cats[cat],var).astype(int).reshape(1,-1), columns=cats[cat])
 
 def query_tabix(ch, s, e, opt=""):
-    os.system(f"tabix -h {CADD_FILE} {ch}:{s}-{e} > /tmp/{ch}:{s}-{e}.tsv")
+    os.system(f"tabix -h {cadd_file} {ch}:{s}-{e} > /tmp/{ch}:{s}-{e}.tsv")
     return pd.read_table(f"/tmp/{ch}:{s}-{e}.tsv", header=1)
 
 def get_cadd(ch,pos,ref,alt):
@@ -189,37 +158,6 @@ def get_header():
     header.append("eOutlier") 
     return "\t".join(header) + "\n"
 
-vcf = open(vcf_file, 'r')
-cols = vcf.readline()[1:-1].split()
-
-chidx = np.where(np.array(cols) == "CHROM")[0][0]
-pidx = np.where(np.array(cols) == "POS")[0][0]
-refidx = np.where(np.array(cols) == "REF")[0][0]
-altidx = np.where(np.array(cols) == "ALT")[0][0]
-
-lidx = np.where(np.array(vep_fields) == "LoF")[0][0]
-vidx = np.where(np.array(vep_fields) == "Consequence")[0][0]
-gidx = np.where(np.array(vep_fields) == "Gene")[0][0]
-
-out = open(f"{data_dir}/{tsv_out}", 'w')
-gout = open(f"{data_dir}/{gene_outliers}", 'w')
-print(f"{data_dir}/{tsv_out}")
-print(f"{data_dir}/{gene_outliers}")
-
-# Expression outlier scores from residuals file
-eout_file = f"/oak/stanford/groups/smontgom/erobb/data/watershed/{pop}_exprResiduals.tsv"
-eout_keep_file = f"{data_dir}/ids_outlier_filtered_{pop}_t3f75.txt"
-eout_df = pd.read_table(eout_file, sep="\t", index_col=0).T
-# drop transcript information
-gene_names = [c.split(".")[0] for c in eout_df.columns]
-assert(len(np.unique(gene_names)) == len(eout_df.columns))
-eout_df.columns = gene_names
-inds_keep = pd.read_table(eout_keep_file, sep=" ", index_col=0, header=None).T
-#eout_df = eout_df.loc[eout_df.index.intersection(inds_keep.columns)]
-
-    
-header = get_header()
-out.write(header)
 
 def do_work(in_queue, out_list):
     t1  = time.time()
@@ -236,6 +174,59 @@ def do_work(in_queue, out_list):
         elif time.time() - t1 > 1: return
 
 if __name__ == "__main__":
+
+    argParser = argparse.ArgumentParser()
+    argParser.add_argument("--nw", default=32, type=int, help="number of workers (processes)")
+    argParser.add_argument("--buf", default=100, type=int, help="buffer size per process")
+    argParser.add_argument("--pop", default="AFR", type=str)
+    argParser.add_argument("--data_dir", default='/oak/stanford/groups/smontgom/erobb/data', type=str)
+
+    args = argParser.parse_args()
+    pop = args.pop
+    cadd_file = f"{args.data_dir}/cadd/whole_genome_SNVs_inclAnno.tsv.gz"
+
+
+    vcf_in = f"AF.all.{pop}.hg38a.ID.ba.VEP.rare.vcf"
+    tsv_out = f'AF.all.{pop}.hg38a.ID.ba.VEP.rare.ws.tsv'
+    gene_outliers = f'gene_outliers_{pop}.tsv'
+    vcf_file = f"{args.data_dir}/vep/{vcf_in}"
+    eout_file = f"{args.data_dir}/eoutliers/{pop}_exprResiduals.tsv"
+    eout_keep_file = f"{args.data_dir}/eoutliers/ids_outlier_filtered_{pop}_t3.00f75.txt"
+
+
+    # TODO read these from a file
+    vep_fields = 'Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|Existing_variation|DISTANCE|STRAND|FLAGS|SYMBOL_SOURCE|HGNC_ID|LoF|LoF_filter|LoF_flags|LoF_info'.split("|")
+    cadd_anno = ["GC", "CpG", "SIFTcat", "SIFTval","PolyPhenCat",
+                 "PolyPhenVal", "bStatistic", "priPhCons","mamPhCons","verPhCons",
+                 "priPhyloP","mamPhyloP","verPhyloP","GerpN","GerpS","PHRED"]
+
+    vcf = open(vcf_file, 'r')
+    cols = vcf.readline()[1:-1].split()
+
+    chidx = np.where(np.array(cols) == "CHROM")[0][0]
+    pidx = np.where(np.array(cols) == "POS")[0][0]
+    refidx = np.where(np.array(cols) == "REF")[0][0]
+    altidx = np.where(np.array(cols) == "ALT")[0][0]
+
+    lidx = np.where(np.array(vep_fields) == "LoF")[0][0]
+    vidx = np.where(np.array(vep_fields) == "Consequence")[0][0]
+    gidx = np.where(np.array(vep_fields) == "Gene")[0][0]
+
+    out = open(f"{args.data_dir}/watershed/{tsv_out}", 'w')
+    # TODO move the gout creation to residuals.ipynb
+    gout = open(f"{args.data_dir}/eoutliers/{gene_outliers}", 'w')
+
+    # Expression outlier scores from residuals file
+    eout_df = pd.read_table(eout_file, sep="\t", index_col=0).T
+    # drop transcript information
+    gene_names = [c.split(".")[0] for c in eout_df.columns]
+    assert(len(np.unique(gene_names)) == len(eout_df.columns))
+    eout_df.columns = gene_names
+    inds_keep = pd.read_table(eout_keep_file, sep=" ", index_col=0, header=None).T
+    #eout_df = eout_df.loc[eout_df.index.intersection(inds_keep.columns)]
+        
+    header = get_header()
+    out.write(header)
 
     os.system(f"wc -l {vcf_file} > /tmp/wc_{pop}")
     n = int(open(f"/tmp/wc_{pop}", "r").readlines()[0].split()[0])
@@ -284,6 +275,6 @@ if __name__ == "__main__":
 
     out.close()  
     gout.close()
-
+    print("finished processing vcf.")
 
 

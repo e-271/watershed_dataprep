@@ -58,25 +58,24 @@ if __name__ == '__main__':
 
     argParser = argparse.ArgumentParser()
     argParser.add_argument("--pop", default="ESN", type=str)
-    argParser.add_argument("--data_dir", 
-                            default='/oak/stanford/groups/smontgom/erobb/data/watershed',
-                            type=str)
-    argParser.add_argument("--gencode", 
-                            default="/oak/stanford/groups/smontgom/erobb/data/watershed/gencode.v43.chr_patch_hapl_scaff.annotation.exons.protein_lincRNA.gtf", 
+    argParser.add_argument("--data_dir", default='/oak/stanford/groups/smontgom/erobb/data', type=str)
+    #argParser.add_argument("--gencode", 
+    #                        default="/oak/stanford/groups/smontgom/erobb/data/watershed/gencode.v43.chr_patch_hapl_scaff.annotation.exons.protein_lincRNA.gtf", 
                             type=str)
     args = argParser.parse_args()
-    
+        
+    gencode_file = '{args.data_dir}/gencode/gencode.v43.chr_patch_hapl_scaff.annotation.exons.protein_lincRNA.gtf'
     tsv_in = f'AF.all.{args.pop}.hg38a.ID.ba.VEP.rare.ws.tsv'
-    tsv_out =  f'AF.all.{args.pop}.hg38a.ID.ba.VEP.gencode.rare.ws.tsv'
-    tsv_file = f'{args.data_dir}/{tsv_in}'
-    tsv_file_out = f'{args.data_dir}/{tsv_out}'
+    tasv_out =  f'AF.all.{args.pop}.hg38a.ID.ba.VEP.gencode.rare.ws.tsv'
+    tsv_file = f'{args.data_dir}/watershed/{tsv_in}'
+    tsv_file_out = f'{args.data_dir}/watershed/{tsv_out}'
 
 
     var_df = pd.read_table(tsv_file)
     var_df = var_df.sort_values(['Chromosome', 'Position'])
     var_df = var_df.set_index(["Chromosome", "Position"], drop=False)
 
-    gdf = add_gencode(var_df, args.gencode)
+    gdf = add_gencode(var_df, gencode_file)
     gdf.to_csv(tsv_file_out, sep="\t", index=False)
 
 

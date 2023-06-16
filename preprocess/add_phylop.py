@@ -41,18 +41,19 @@ if __name__ == '__main__':
     argParser = argparse.ArgumentParser()
     argParser.add_argument("--pop", default="ESN", type=str)
     argParser.add_argument("--data_dir", 
-                            default='/oak/stanford/groups/smontgom/erobb/data/watershed', type=str)
-    argParser.add_argument("--phylop", 
-                            default='/oak/stanford/groups/smontgom/erobb/data/hg38.phyloP100way.bw',
-                            type=str)
+                            default='/oak/stanford/groups/smontgom/erobb/data', type=str)
+    #argParser.add_argument("--phylop", 
+    #                        default='/oak/stanford/groups/smontgom/erobb/data/hg38.phyloP100way.bw',
+    #                        type=str)
     args = argParser.parse_args()
 
-    tsv_in = f'AF.all.{args.pop}.hg38a.ID.ba.VEP.rare.ws.tsv'
+    phylop_file = f'{args.data_dir}/phylop/hg38.phyloP100way.bw'
+    tsv_in = f'AF.all.{args.pop}.hg38a.ID.ba.VEP.gencode.rare.ws.tsv'
     tsv_out =  f'AF.all.{args.pop}.hg38a.ID.ba.VEP.gencode.phyloP.rare.ws.tsv'
-    tsv_file = f'{args.data_dir}/{tsv_in}'
-    tsv_file_out = f'{args.data_dir}/{tsv_out}'
+    tsv_file = f'{args.data_dir}/watershed/{tsv_in}'
+    tsv_file_out = f'{args.data_dir}/watershed/{tsv_out}'
 
     var_df = pd.read_table(tsv_file)
-    pp_df = add_phyloP(var_df, args.phylop)
+    pp_df = add_phyloP(var_df, phylop_file)
     pp_df.to_csv(tsv_file_out, sep="\t", index=False)
 
