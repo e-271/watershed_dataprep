@@ -60,24 +60,21 @@ def get_cadd(ch,pos,ref,alt):
     if not len(cadd_table): 
         return [""] * len(cadd_anno)
     
-    # TODO pick the most impactful (min or max) for each variant
-    cadd = cadd_table.iloc[0].array.astype(str).tolist()
-    
-    # Replace "nan" with ""
+    cadd = cadd_table.max(numeric_only=True).array.astype(str).tolist()
     svi = np.where(cadd_table.columns == "SIFTval")[0][0]
-    if cadd[svi] == "nan": cadd[svi] = ""
     pvi = np.where(cadd_table.columns == "PolyPhenVal")[0][0]
-    if cadd[pvi] == "nan": cadd[pvi] = "" 
 
     # Replace SIFT with categoriacal
     sci = np.where(cadd_table.columns == "SIFTcat")[0][0]
-    sc = to_cat(cadd[sci], "SIFTcat").values.reshape(-1).astype(str).tolist()
+    sc = to_cat(cadd_table["SIFTcat"].astype(str).iloc[0], "SIFTcat") # implicitly takes a maximum over the table
+    sc = sc.values.reshape(-1).astype(str).tolist()
     cadd[sci] = sc[0]
     for e in range(len(sc[1:])): cadd.insert(sci+e,sc[e])
 
     # Replace PolyPhen with categorical    
     pci = np.where(cadd_table.columns == "PolyPhenCat")[0][0] + len(sc[1:])
-    pc = to_cat(cadd[pci], "PolyPhenCat").values.reshape(-1).astype(str).tolist()
+    pc = to_cat(cadd_table["PolyPhenCat"].astype(str).iloc[0], "PolyPhenCat") # implicitly takes maximum over the table
+    pc = pc.values.reshape(-1).astype(str).tolist()
     cadd[pci]=pc[0]
     for e in range(len(pc[1:])): cadd.insert(pci+e,pc[e])
     return cadd
@@ -192,7 +189,6 @@ if __name__ == "__main__":
     vcf_file = f"{args.data_dir}/vep/{vcf_in}"
     eout_file = f"{args.data_dir}/eoutliers/{pop}_exprResiduals.tsv"
     eout_keep_file = f"{args.data_dir}/eoutliers/ids_outlier_filtered_{pop}_t3.00f75.txt"
-
 
     # TODO read these from a file
     vep_fields = 'Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|Existing_variation|DISTANCE|STRAND|FLAGS|SYMBOL_SOURCE|HGNC_ID|LoF|LoF_filter|LoF_flags|LoF_info'.split("|")
