@@ -16,37 +16,33 @@ import argparse
 import os
 from tqdm import tqdm
 
-def binsearch(df, pos, c1, c2):
-    """
-    Assumes dataframe is sorted by c1,c2.
-    """
-    n = len(df)
-    if n == 0: return None
-    if pos > df[c2].iloc[n//2]: # pos is to the right of "end"
-        return binsearch(df.iloc[n//2+1:], pos, c1, c2)
-    elif pos < df[c1].iloc[n//2]: # pos is to the left of "start"
-        return binsearch(df.iloc[:n//2], pos, c1, c2)
-    elif df[c1].iloc[n//2] <= pos and df[c2].iloc[n//2] >= pos:
-        return df.iloc[n//2]
-    else:
-        return None
-
 def add_gencode(df, gencode):
     gc = pd.read_table(gencode, header=None)
-    gc = gc.sort_values([0,3,4])
-    gc = gc.set_index([0],drop=False)
-    
-    def _query(row):
-        ch, pos = row.index.unique()[0]
-        gc_ch_pos = binsearch(gc.loc[f"chr{ch}"], pos, 3, 4)
-        if gc_ch_pos is None: return [np.nan, np.nan]
-        TSS = pos - gc_ch_pos[3] #gc.loc[w,3].values[0]
-        TES = gc_ch_pos[4] - pos #gc.loc[w,4].values[0] - pos
-        return [TSS, TES]
+    ann_df = gc[8].str.split(";", expand=True)
+    gc["gene_id"] = ann_df[0].str.strip("gene_id ").str.strip('"')
+    gc["gene_id"] = gc["gene_id"].str.split(".", expand=True)[0] 
+    gc["transcript_id"]  = ann_df[1].str.strip("transcript_id ").str.strip('"')
+    gc = gc.set_index(["gene_id"],drop=False)
+    gc = gc.sort_index()    
 
     ann = []
+    drop = []
     for idx in tqdm(df.index):
-        ann.append(_query(df.loc[idx]))
+        row =  df.loc[idx]
+        gene = row["GeneName"].unique()[0]
+        if gene in gc.index:
+            gc.loc[gene]
+            ch, pos = row.index.unique()[0]
+            TSS, TES = gc.loc[gene, 3].min(), gc.loc[gene, 4].max()
+            dTSS = abs(pos - TSS)
+            dTES = abs(TES - pos)
+            #assert dTSS > 0, f"dTSS is negative for {idx}, {TSS}-{TES}"
+            #assert dTES > 0, f"dTES is negative for {idx}, {TSS}-{TES}"
+            ann.append([dTSS, dTES])
+        else:
+            ann.append([np.nan, np.nan])
+
+        #ann.append(_query(df.loc[idx]))
     ann = np.array(ann)
 
     df.insert(4, "distTSS", ann[:,0])
@@ -59,21 +55,19 @@ if __name__ == '__main__':
     argParser = argparse.ArgumentParser()
     argParser.add_argument("--pop", default="ESN", type=str)
     argParser.add_argument("--data_dir", default='/oak/stanford/groups/smontgom/erobb/data', type=str)
-    #argParser.add_argument("--gencode", 
-    #                        default="/oak/stanford/groups/smontgom/erobb/data/watershed/gencode.v43.chr_patch_hapl_scaff.annotation.exons.protein_lincRNA.gtf", 
-                            type=str)
     args = argParser.parse_args()
         
-    gencode_file = '{args.data_dir}/gencode/gencode.v43.chr_patch_hapl_scaff.annotation.exons.protein_lincRNA.gtf'
+    gencode_file = f'{args.data_dir}/gencode/gencode.v43.chr_patch_hapl_scaff.annotation.transcripts.protein_lincRNA.gtf'
     tsv_in = f'AF.all.{args.pop}.hg38a.ID.ba.VEP.rare.ws.tsv'
-    tasv_out =  f'AF.all.{args.pop}.hg38a.ID.ba.VEP.gencode.rare.ws.tsv'
+    tsv_out =  f'AF.all.{args.pop}.hg38a.ID.ba.VEP.gencode.rare.ws.tsv'
     tsv_file = f'{args.data_dir}/watershed/{tsv_in}'
     tsv_file_out = f'{args.data_dir}/watershed/{tsv_out}'
 
 
     var_df = pd.read_table(tsv_file)
-    var_df = var_df.sort_values(['Chromosome', 'Position'])
+    #var_df = var_df.sort_values(['Chromosome', 'Position'])
     var_df = var_df.set_index(["Chromosome", "Position"], drop=False)
+    var_df = var_df.sort_index() # for speed
 
     gdf = add_gencode(var_df, gencode_file)
     gdf.to_csv(tsv_file_out, sep="\t", index=False)
