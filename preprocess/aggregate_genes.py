@@ -4,6 +4,7 @@ import numpy as np
 import argparse
 import warnings
 from tqdm import tqdm
+from collections import defaultdict
 
 warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 
@@ -32,12 +33,15 @@ def aggregate(df, genes_keep):
  
     pbar = tqdm(total=n) 
     drop_genes = []
+    seen = defaultdict(bool) # defaults to False
+    aggs = []
     while i < n:
         # Find start & end positions for current gene
         cur_id = df.iloc[i]["SubjectID"]
         cur_gene = df.iloc[i]["GeneName"]
 
-        if (cur_id, cur_gene) in agg_df.index or cur_gene not in genes_keep: 
+        if seen[(cur_id, cur_gene)] \
+            or cur_gene not in genes_keep: 
             i += 1
             pbar.update(1)
             continue
@@ -67,15 +71,14 @@ def aggregate(df, genes_keep):
         agg = _apply_agg(df.iloc[astart:aend])
         agg["SubjectID"] = cur_id
         agg["GeneName"] = cur_gene
-        agg = agg.set_index(["SubjectID", "GeneName"], drop=False)
-        if (cur_id, cur_gene) in agg_df.index:
-            print(i, cur_id, cur_gene)
-            assert False
-        agg_df = pd.concat([agg_df, agg])
+        aggs.append(agg)
 
+        seen[(cur_id, cur_gene)] = True
         i += 1
         pbar.update(1)
 
+    agg_df = pd.concat(aggs)
+    agg_df = agg_df.set_index(["SubjectID", "GeneName"], drop=False)
     assert len(agg_df.index.unique()) == len(agg_df.index)
     agg_df = agg_df.drop(["Chromosome", "Position"], axis=1)
 
