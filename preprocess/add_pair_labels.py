@@ -72,8 +72,8 @@ if __name__ == '__main__':
     args = argParser.parse_args()
     pop = args.pop
 
-    tsv_in = f'{args.data_dir}/watershed/AF.all.{args.pop}.hg38a.ID.ba.VEP.gencode.phyloP.rare.agg.ws.tsv'
-    tsv_out = f'{args.data_dir}/watershed/AF.all.{args.pop}.hg38a.ID.ba.VEP.gencode.phyloP.rare.agg.ws.pairs.tsv'
+    tsv_in = f'{args.data_dir}/watershed/AF.all.{args.pop}.hg38a.ID.ba.VEP.gencode.phyloP.rare.agg.eout.ws.tsv'
+    tsv_out = f'{args.data_dir}/watershed/AF.all.{args.pop}.hg38a.ID.ba.VEP.gencode.phyloP.rare.agg.eout.ws.pairs.tsv'
     gene_outliers = f"{args.data_dir}/eoutliers/gene_outliers_{args.pop}.tsv"
 
     label_pairs(tsv_in, tsv_out, gene_outliers)
