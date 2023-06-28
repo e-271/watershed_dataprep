@@ -7,7 +7,6 @@ Prereqs:
   # BigWig python tool
   pip install pyBigWig
 
-
 """
 
 import pandas as pd
@@ -42,14 +41,21 @@ if __name__ == '__main__':
     argParser.add_argument("--pop", default="ESN", type=str)
     argParser.add_argument("--data_dir", 
                             default='/oak/stanford/groups/smontgom/erobb/data', type=str)
-    #argParser.add_argument("--phylop", 
-    #                        default='/oak/stanford/groups/smontgom/erobb/data/hg38.phyloP100way.bw',
-    #                        type=str)
+    argParser.add_argument("--postfix_in", 
+                            default='VEP.gencode', type=str)
+    argParser.add_argument("--postfix_out", 
+                            #default='VEP.gencode.phyloP', 
+                            default='VEP.gencode.phyloP-241', 
+                            type=str)
+    argParser.add_argument("--phylop", 
+                            #default='hg38.phyloP100way.bw',
+                            default='241-mammalian-2020v2.bigWig',
+                            type=str)
     args = argParser.parse_args()
 
-    phylop_file = f'{args.data_dir}/phylop/hg38.phyloP100way.bw'
-    tsv_in = f'AF.all.{args.pop}.hg38a.ID.ba.VEP.gencode.rare.ws.tsv'
-    tsv_out =  f'AF.all.{args.pop}.hg38a.ID.ba.VEP.gencode.phyloP.rare.ws.tsv'
+    phylop_file = f'{args.data_dir}/phylop/{args.phylop}'
+    tsv_in = f'AF.all.{args.pop}.hg38a.ID.ba.{args.postfix_in}.rare.ws.tsv'
+    tsv_out =  f'AF.all.{args.pop}.hg38a.ID.ba.{args.postfix_out}.rare.ws.tsv'
     tsv_file = f'{args.data_dir}/watershed/{tsv_in}'
     tsv_file_out = f'{args.data_dir}/watershed/{tsv_out}'
 
