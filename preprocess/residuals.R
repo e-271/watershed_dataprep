@@ -3,7 +3,6 @@
 
 args = commandArgs(trailingOnly=TRUE)
 pop = args[1]
-#pop="GWD"
 #pops = c("ESN", "GWD", "LWK", "MKK", "YRI", "MSL")
 
 
@@ -36,6 +35,7 @@ vcf_df = read.table(vcf_file, header=T, skip=0, row.names="GENE")
 # Filter to IDs with available covariates
 id_keep = colnames(expr)[5:length(colnames(expr))]
 id_keep = intersect(id_keep,colnames(covs))
+id_keep = intersect(id_keep,colnames(vcf_df))
 covs = covs[,id_keep]
 expr = expr[,id_keep]
 

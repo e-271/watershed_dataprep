@@ -60,24 +60,21 @@ def get_cadd(ch,pos,ref,alt):
     if not len(cadd_table): 
         return [""] * len(cadd_anno)
     
-    # TODO pick the most impactful (min or max) for each variant
-    cadd = cadd_table.iloc[0].array.astype(str).tolist()
-    
-    # Replace "nan" with ""
+    cadd = cadd_table.max(numeric_only=True).array.astype(str).tolist()
     svi = np.where(cadd_table.columns == "SIFTval")[0][0]
-    if cadd[svi] == "nan": cadd[svi] = ""
     pvi = np.where(cadd_table.columns == "PolyPhenVal")[0][0]
-    if cadd[pvi] == "nan": cadd[pvi] = "" 
 
     # Replace SIFT with categoriacal
     sci = np.where(cadd_table.columns == "SIFTcat")[0][0]
-    sc = to_cat(cadd[sci], "SIFTcat").values.reshape(-1).astype(str).tolist()
+    sc = to_cat(cadd_table["SIFTcat"].astype(str).iloc[0], "SIFTcat") # implicitly takes a maximum over the table
+    sc = sc.values.reshape(-1).astype(str).tolist()
     cadd[sci] = sc[0]
     for e in range(len(sc[1:])): cadd.insert(sci+e,sc[e])
 
     # Replace PolyPhen with categorical    
     pci = np.where(cadd_table.columns == "PolyPhenCat")[0][0] + len(sc[1:])
-    pc = to_cat(cadd[pci], "PolyPhenCat").values.reshape(-1).astype(str).tolist()
+    pc = to_cat(cadd_table["PolyPhenCat"].astype(str).iloc[0], "PolyPhenCat") # implicitly takes maximum over the table
+    pc = pc.values.reshape(-1).astype(str).tolist()
     cadd[pci]=pc[0]
     for e in range(len(pc[1:])): cadd.insert(pci+e,pc[e])
     return cadd
@@ -128,16 +125,11 @@ def process_line(l):
             
             # Filter out indices with too many outliers
             if not rid in inds_keep: print(rid)
-            # TODO For now I'm skipping genes that aren't in expression data
-            # but I think its okay to have some blank values
-            if (gene not in eout_df): continue
 
             out_line = [rid, gene, ch, pos, af]
             out_line.extend(vep_cat_df.loc[gene].array.astype(str).tolist())
 
             out_line.extend(cadd)
-            eout = eout_df.loc[rid, gene]
-            out_line.append(str(eout))
             out_lines.append("\t".join(out_line) + "\n")
 
     genes = vep_cat_df.index.array
@@ -155,7 +147,6 @@ def get_header():
             cadd_anno_cols.extend([f"{c[:-3]}_{cc}" for cc in cats[c]])
         else: cadd_anno_cols.append(c)
     header.extend(cadd_anno_cols)
-    header.append("eOutlier") 
     return "\t".join(header) + "\n"
 
 
@@ -190,9 +181,6 @@ if __name__ == "__main__":
     tsv_out = f'AF.all.{pop}.hg38a.ID.ba.VEP.rare.ws.tsv'
     gene_outliers = f'gene_outliers_{pop}.tsv'
     vcf_file = f"{args.data_dir}/vep/{vcf_in}"
-    eout_file = f"{args.data_dir}/eoutliers/{pop}_exprResiduals.tsv"
-    eout_keep_file = f"{args.data_dir}/eoutliers/ids_outlier_filtered_{pop}_t3.00f75.txt"
-
 
     # TODO read these from a file
     vep_fields = 'Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|Existing_variation|DISTANCE|STRAND|FLAGS|SYMBOL_SOURCE|HGNC_ID|LoF|LoF_filter|LoF_flags|LoF_info'.split("|")
@@ -216,15 +204,6 @@ if __name__ == "__main__":
     # TODO move the gout creation to residuals.ipynb
     gout = open(f"{args.data_dir}/eoutliers/{gene_outliers}", 'w')
 
-    # Expression outlier scores from residuals file
-    eout_df = pd.read_table(eout_file, sep="\t", index_col=0).T
-    # drop transcript information
-    gene_names = [c.split(".")[0] for c in eout_df.columns]
-    assert(len(np.unique(gene_names)) == len(eout_df.columns))
-    eout_df.columns = gene_names
-    inds_keep = pd.read_table(eout_keep_file, sep=" ", index_col=0, header=None).T
-    #eout_df = eout_df.loc[eout_df.index.intersection(inds_keep.columns)]
-        
     header = get_header()
     out.write(header)
 

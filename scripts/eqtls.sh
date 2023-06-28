@@ -33,7 +33,7 @@ tail -n +2 | \
 awk '{if (C != $9) {C=$9; print $0}}' \
 >>  "${data_dir}/eqtls/sorted.byGene.dist.hwe.af.${POP}.top1.eQTL.nominal.hg38a.txt"
 
-#echo "Extracting ID/variant for top eQTLs..."
+echo "Extracting ID/variant for top eQTLs..."
 # Copy header
 rm  "${data_dir}/eqtls/AF.all.${POP}.hg38aID.eQTLs.ba.vcf"
 head -n 100 "${data_dir}/vcf/AF.all.${POP}.hg38a.ID.ba.vcf" | awk '{if ($1 == "#CHROM"){print "GENE" FS $0}}' | sed s/#//  >  "${data_dir}/eqtls/AF.all.${POP}.hg38aID.eQTLs.ba.vcf"
