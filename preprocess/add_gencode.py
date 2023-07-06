@@ -29,20 +29,24 @@ def add_gencode(df, gencode):
     drop = []
     for idx in tqdm(df.index):
         row =  df.loc[idx]
-        gene = row["GeneName"].unique()[0]
-        if gene in gc.index:
-            gc.loc[gene]
-            ch, pos = row.index.unique()[0]
-            TSS, TES = gc.loc[gene, 3].min(), gc.loc[gene, 4].max()
-            dTSS = abs(pos - TSS)
-            dTES = abs(TES - pos)
-            #assert dTSS > 0, f"dTSS is negative for {idx}, {TSS}-{TES}"
-            #assert dTES > 0, f"dTES is negative for {idx}, {TSS}-{TES}"
-            ann.append([dTSS, dTES])
-        else:
-            ann.append([np.nan, np.nan])
+        genes = row["GeneName"].unique()
+        TSS, TES = [], []
+        for gene in genes:
+            if gene in gc.index:
+                gc.loc[gene]
+                ch, pos = row.index.unique()[0]
+                tss, tes = gc.loc[gene, 3].min(), gc.loc[gene, 4].max()
+                dTSS = abs(pos - tss)
+                dTES = abs(tes - pos)
+                TSS.append(dTSS)
+                TES.append(dTES)
+            else:
+                TSS.append(np.nan)
+                TES.append(np.nan)
+        dTSS = min(TSS)
+        dTES = min(TES)
+        ann.append([dTSS, dTES])
 
-        #ann.append(_query(df.loc[idx]))
     ann = np.array(ann)
 
     df.insert(4, "distTSS", ann[:,0])
