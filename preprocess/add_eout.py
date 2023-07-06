@@ -38,13 +38,21 @@ if __name__ == '__main__':
 
     argParser = argparse.ArgumentParser()
     argParser.add_argument("--pop", default="ESN", type=str)
+    argParser.add_argument("--postfix_in",
+                            default='VEP.gencode.phyloP.agg',
+                            #default='VEP.gencode.phyloP-241.agg',
+                            type=str)
+    argParser.add_argument("--postfix_out",
+                            default='VEP.gencode.phyloP.agg.eout',
+                            #default='VEP.gencode.phyloP-241.agg.eout',
+                            type=str)
     argParser.add_argument("--data_dir", default='/oak/stanford/groups/smontgom/erobb/data', type=str)
     args = argParser.parse_args()
         
     eout_file = f"{args.data_dir}/eoutliers/{args.pop}_exprResiduals.tsv"
     eout_keep_file = f"{args.data_dir}/eoutliers/ids_outlier_filtered_{args.pop}_t3.00f75.txt"
-    tsv_in =  f'AF.all.{args.pop}.hg38a.ID.ba.VEP.gencode.phyloP.rare.agg.ws.tsv'
-    tsv_out =  f'AF.all.{args.pop}.hg38a.ID.ba.VEP.gencode.phyloP.rare.agg.eout.ws.tsv'
+    tsv_in =  f'AF.all.{args.pop}.hg38a.ID.ba.{args.postfix_in}.rare.ws.tsv'
+    tsv_out =  f'AF.all.{args.pop}.hg38a.ID.ba.{args.postfix_out}.rare.ws.tsv'
     tsv_file = f'{args.data_dir}/watershed/{tsv_in}'
     tsv_file_out = f'{args.data_dir}/watershed/{tsv_out}'
 

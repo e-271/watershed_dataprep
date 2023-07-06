@@ -5,6 +5,7 @@ import argparse
 import warnings
 from tqdm import tqdm
 from collections import defaultdict
+import json
 
 warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 
@@ -34,6 +35,7 @@ def aggregate(df, genes_keep):
     pbar = tqdm(total=n) 
     drop_genes = []
     seen = defaultdict(bool) # defaults to False
+    pairs = defaultdict(list)
     aggs = []
     while i < n:
         # Find start & end positions for current gene
@@ -69,6 +71,11 @@ def aggregate(df, genes_keep):
 
         # Aggregate over gene += 10kb
         agg = _apply_agg(df.iloc[astart:aend])
+        # Add ID to the "pair" ID (gene: rare variant positions)
+        positions = np.sort(df.iloc[astart:aend]["Position"].to_numpy()).astype(str).tolist()
+        pair = "_".join([cur_gene] + positions)
+        pairs[pair].append(cur_id)
+
         agg["SubjectID"] = cur_id
         agg["GeneName"] = cur_gene
         aggs.append(agg)
@@ -82,7 +89,7 @@ def aggregate(df, genes_keep):
     assert len(agg_df.index.unique()) == len(agg_df.index)
     agg_df = agg_df.drop(["Chromosome", "Position"], axis=1)
 
-    return agg_df
+    return agg_df, pairs
 
 
 impute_values = {
@@ -163,12 +170,12 @@ if __name__ == '__main__':
     argParser = argparse.ArgumentParser()
     argParser.add_argument("--pop", default="ESN", type=str)
     argParser.add_argument("--postfix_in",
-                            #default='VEP.gencode.phyloP', 
-                            default='VEP.gencode.phyloP-241', 
+                            default='VEP.gencode.phyloP', 
+                            #default='VEP.gencode.phyloP-241', 
                             type=str)
     argParser.add_argument("--postfix_out",
-                            #default='VEP.gencode.phyloP.agg',
-                            default='VEP.gencode.phyloP-241.agg',
+                            default='VEP.gencode.phyloP.agg',
+                            #default='VEP.gencode.phyloP-241.agg',
                             type=str)
     argParser.add_argument("--data_dir", default='/oak/stanford/groups/smontgom/erobb/data', type=str)
     args = argParser.parse_args()
@@ -177,6 +184,7 @@ if __name__ == '__main__':
     tsv_out =  f'AF.all.{args.pop}.hg38a.ID.ba.{args.postfix_out}.rare.ws.tsv'
     tsv_file = f'{args.data_dir}/watershed/{tsv_in}'
     tsv_file_out = f'{args.data_dir}/watershed/{tsv_out}'    
+    pairs_file_out =  f'{args.data_dir}/watershed/variant_pairs_{args.pop}.json'
     gid_file = f'{args.data_dir}/gencode/gencode.v43.gene_ids.protein_lincRNA.txt'
 
     gids = pd.read_table(gid_file, header=None)
@@ -184,7 +192,7 @@ if __name__ == '__main__':
     var_df = pd.read_table(tsv_file)
     var_df = impute_missing(var_df)
 
-    agg_df = aggregate(var_df, gids)
+    agg_df, pairs = aggregate(var_df, gids)
+    json.dump(pairs, open(pairs_file_out, 'w'))
     agg_df.to_csv(tsv_file_out, sep="\t", index=False)
-    
 

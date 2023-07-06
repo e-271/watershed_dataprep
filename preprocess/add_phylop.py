@@ -44,12 +44,12 @@ if __name__ == '__main__':
     argParser.add_argument("--postfix_in", 
                             default='VEP.gencode', type=str)
     argParser.add_argument("--postfix_out", 
-                            #default='VEP.gencode.phyloP', 
-                            default='VEP.gencode.phyloP-241', 
+                            default='VEP.gencode.phyloP', 
+                            #default='VEP.gencode.phyloP-241', 
                             type=str)
     argParser.add_argument("--phylop", 
-                            #default='hg38.phyloP100way.bw',
-                            default='241-mammalian-2020v2.bigWig',
+                            default='hg38.phyloP100way.bw',
+                            #default='241-mammalian-2020v2.bigWig',
                             type=str)
     args = argParser.parse_args()
 
