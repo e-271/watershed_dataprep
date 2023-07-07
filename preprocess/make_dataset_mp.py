@@ -120,12 +120,9 @@ def process_line(l):
     out_lines = []
 
     # Create annotation line for each id, gene pair
-    for rid in set(rare_ids).intersection(inds_keep):
+    for rid in set(rare_ids):
         for gene in vep_cat_df.index:
             
-            # Filter out indices with too many outliers
-            if not rid in inds_keep: print(rid)
-
             out_line = [rid, gene, ch, pos, af]
             out_line.extend(vep_cat_df.loc[gene].array.astype(str).tolist())
 
