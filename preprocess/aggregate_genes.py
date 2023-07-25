@@ -9,7 +9,7 @@ import json
 
 warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 
-def aggregate(df, genes_keep):
+def aggregate(df, genes_keep, gencode_file):
     
     def _agg_func(x):
         if x.name in ['AF', 'distTSS', 'distTES']: 
@@ -37,8 +37,13 @@ def aggregate(df, genes_keep):
     seen = defaultdict(bool) # defaults to False
     pairs = defaultdict(list)
     aggs = []
+
+    # Gencode file defining positions of genes (run scripts/gene_pos.sh)
+    gencode_df = pd.read_table(gencode_file, sep="\t", header=None)
+    gencode_df[0] = gencode_df[0].str.replace('[.].*', '', regex=True)
+    gencode_df = gencode_df.set_index(0)
+
     while i < n:
-        # Find start & end positions for current gene
         cur_id = df.iloc[i]["SubjectID"]
         cur_gene = df.iloc[i]["GeneName"]
 
@@ -51,9 +56,8 @@ def aggregate(df, genes_keep):
         gene_df = df.loc[(cur_id, cur_gene)]
 
         # Find min & max position for current gene
-        ch = gene_df["Chromosome"].iloc[0] # should all be on same chromosome right?
-        pos = gene_df["Position"]
-        pmin, pmax = pos.min(), pos.max()
+        ch = gencode_df.loc[cur_gene, 1]
+        pmin, pmax = gencode_df.loc[cur_gene,2], gencode_df.loc[cur_gene,3]
 
         # Find += 10kb windows
         astart, aend = i, i+1
@@ -93,6 +97,7 @@ def aggregate(df, genes_keep):
 
 
 impute_values = {
+"GeneName": "", # intergenic variants, should be aggregated into any nearby genes / dropped if there are no nearby genes
 "distTSS": np.nan, # These should disappear after aggregation I think? Valid NaN for variants not in a coding region?
 "distTES": np.nan,
 'AF': np.nan, 
@@ -170,29 +175,29 @@ if __name__ == '__main__':
     argParser = argparse.ArgumentParser()
     argParser.add_argument("--pop", default="ESN", type=str)
     argParser.add_argument("--postfix_in",
-                            default='VEP.gencode.phyloP', 
-                            #default='VEP.gencode.phyloP-241', 
+                            #default='hg38a.ID.ba.VEP.rare.ws.gencode.phyloP', 
+                            default='30x.ID.VEP.bedtools.rare.ws.gencode.phyloP',
                             type=str)
     argParser.add_argument("--postfix_out",
-                            default='VEP.gencode.phyloP.agg',
-                            #default='VEP.gencode.phyloP-241.agg',
+                            default='agg',
                             type=str)
     argParser.add_argument("--data_dir", default='/oak/stanford/groups/smontgom/erobb/data', type=str)
     args = argParser.parse_args()
 
-    tsv_in = f'AF.all.{args.pop}.hg38a.ID.ba.{args.postfix_in}.rare.ws.tsv'
-    tsv_out =  f'AF.all.{args.pop}.hg38a.ID.ba.{args.postfix_out}.rare.ws.tsv'
+    tsv_in = f'all.{args.pop}.{args.postfix_in}.tsv'
+    tsv_out =  f'all.{args.pop}.{args.postfix_in}.{args.postfix_out}.tsv'
     tsv_file = f'{args.data_dir}/watershed/{tsv_in}'
     tsv_file_out = f'{args.data_dir}/watershed/{tsv_out}'    
     pairs_file_out =  f'{args.data_dir}/watershed/variant_pairs_{args.pop}.json'
     gid_file = f'{args.data_dir}/gencode/gencode.v43.gene_ids.protein_lincRNA.txt'
+    gencode_file = f'{args.data_dir}/gencode/gencode.v43.gene_pos.tsv'
 
     gids = pd.read_table(gid_file, header=None)
     gids = gids[0].str.split(".", expand=True)[0].values
     var_df = pd.read_table(tsv_file)
     var_df = impute_missing(var_df)
 
-    agg_df, pairs = aggregate(var_df, gids)
+    agg_df, pairs = aggregate(var_df, gids, gencode_file)
     json.dump(pairs, open(pairs_file_out, 'w'))
     agg_df.to_csv(tsv_file_out, sep="\t", index=False)
 
