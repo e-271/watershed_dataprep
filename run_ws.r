@@ -1,72 +1,29 @@
-devtools::install("/home/erobb/watershed/WatershedR")
+#devtools::install("/home/erobb/WatershedR")
 library(WatershedR)
 
-input="/oak/stanford/groups/smontgom/erobb/data/watershed/AF.all.ESN.hg38a.ID.ba.VEP.rare.agg.ws.pairs.tsv"
-# Run using Watershed approximate inference
+args = commandArgs(trailingOnly=TRUE)
+pop = args[1]
+s = as.numeric(args[2])
+data_dir = "/oak/stanford/groups/smontgom/erobb/data"
+
+
+print("starting...")
+print(pop)
+print(s)
+set.seed(s)
+input = sprintf("%s/watershed/all.%s.30x.ID.VEP.bedtools.rare.ws.gencode.phyloP.agg.eout.pairs.tsv", data_dir, pop)
+#input = sprintf("%s/watershed/AF.all.%s.hg38a.ID.ba.VEP.gencode.phyloP.agg.eout.pairs.rare.ws.tsv", data_dir, pop)
+#input = sprintf("/Volumes/T7/watershed/AF.all.%s.hg38a.ID.ba.VEP.gencode.phyloP-241.agg.eout.pairs.rare.ws.tsv", pop)
 ws = evaluate_watershed(input_file = input,
-                   model_name = "RIVER", 
+                   model_name = "RIVER",
                    number_of_dimensions = 1,
-                   output_prefix = "watershed_approximate_n1")
-
-
-
-print("Watershed AUC")
-print(ws$auc[[1]]$evaROC$watershed_pr_auc)
-
-print("GAM AUC")
-print(ws$auc[[1]]$evaROC$GAM_pr_auc)
-
-
-names(ws$auc[[1]]$evaROC)
-
-# list of length 18
-names(ws$model_params)
-
-# Model parameters, 
-# edges between outliers (dim=1 for us)
-"theta_pair"           
-"theta_singleton"      
-
-# feat_dim x outlier_dim
-"theta"               
-
-# Means per gene/ind, very large
-"mu"                   
-"mu_pairwise"       
-
-# eOutlier posterior, length $num_samples
-"posterior"           
-"posterior_pairwise"   
-
-# Feature metadata
-"num_samples"          
-"num_genomic_features"
-"number_of_dimensions" 
-
-# ??
-"phi"                  
-
-# Lambda hyperparameter, selected by k-fold cross-validation
-# This is regularization weight
-"lambda"              
-"lambda_singleton"     
-"lambda_pair"          
-
-# ??
-"pseudoc"             
-
-# VI hyperparams
-"vi_step_size"         
-"vi_thresh"            
-
-"model_name"  
+                   output_prefix = sprintf("RIVER_n1_30x_%s_seed%s", pop, s),
+                    #output_prefix = sprintf("RIVER_n1_%s_phyloP-241_seed%s", pop, s),
+                   )
 
 
 
 
-# example dim=3
-#input="https://raw.githubusercontent.com/BennyStrobes/Watershed/master/example_data/watershed_example_data.txt"
 
-# example dim=1
-#input="https://raw.githubusercontent.com/BennyStrobes/Watershed/v1.0.0/example_data/river_example_data_pheno_1.txt"
+
 
