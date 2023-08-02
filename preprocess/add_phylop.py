@@ -28,6 +28,7 @@ def add_phyloP(df, phylop):
     
     def _query(row): 
         ch, pos = row.name
+        ch = ch.strip('chr')
         return bw.values(f"chr{ch}", pos, pos+1)[0]
 
     pp = df.apply(_query, 
@@ -41,11 +42,12 @@ if __name__ == '__main__':
     argParser.add_argument("--pop", default="ESN", type=str)
     argParser.add_argument("--data_dir", 
                             default='/oak/stanford/groups/smontgom/erobb/data', type=str)
-    argParser.add_argument("--postfix_in", 
-                            default='VEP.gencode', type=str)
-    argParser.add_argument("--postfix_out", 
-                            default='VEP.gencode.phyloP', 
-                            #default='VEP.gencode.phyloP-241', 
+    argParser.add_argument("--postfix_in",
+                            #default='hg38a.ID.ba.VEP.rare.ws.gencode', 
+                            default='30x.ID.VEP.bedtools.rare.ws.gencode',
+                            type=str)
+    argParser.add_argument("--postfix_out",
+                            default='phyloP',
                             type=str)
     argParser.add_argument("--phylop", 
                             default='hg38.phyloP100way.bw',
@@ -54,8 +56,8 @@ if __name__ == '__main__':
     args = argParser.parse_args()
 
     phylop_file = f'{args.data_dir}/phylop/{args.phylop}'
-    tsv_in = f'AF.all.{args.pop}.hg38a.ID.ba.{args.postfix_in}.rare.ws.tsv'
-    tsv_out =  f'AF.all.{args.pop}.hg38a.ID.ba.{args.postfix_out}.rare.ws.tsv'
+    tsv_in = f'all.{args.pop}.{args.postfix_in}.tsv'
+    tsv_out =  f'all.{args.pop}.{args.postfix_in}.{args.postfix_out}.tsv'
     tsv_file = f'{args.data_dir}/watershed/{tsv_in}'
     tsv_file_out = f'{args.data_dir}/watershed/{tsv_out}'
 

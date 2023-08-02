@@ -58,15 +58,21 @@ if __name__ == '__main__':
 
     argParser = argparse.ArgumentParser()
     argParser.add_argument("--pop", default="ESN", type=str)
+    argParser.add_argument("--postfix_in",
+                            #default='hg38a.ID.ba.VEP.rare.ws', 
+                            default='30x.ID.VEP.bedtools.rare.ws',
+                            type=str)
+    argParser.add_argument("--postfix_out",
+                            default='gencode',
+                            type=str)
     argParser.add_argument("--data_dir", default='/oak/stanford/groups/smontgom/erobb/data', type=str)
     args = argParser.parse_args()
         
     gencode_file = f'{args.data_dir}/gencode/gencode.v43.chr_patch_hapl_scaff.annotation.transcripts.protein_lincRNA.gtf'
-    tsv_in = f'AF.all.{args.pop}.hg38a.ID.ba.VEP.rare.ws.tsv'
-    tsv_out =  f'AF.all.{args.pop}.hg38a.ID.ba.VEP.gencode.rare.ws.tsv'
+    tsv_in = f'all.{args.pop}.{args.postfix_in}.tsv'
+    tsv_out =  f'all.{args.pop}.{args.postfix_in}.{args.postfix_out}.tsv'
     tsv_file = f'{args.data_dir}/watershed/{tsv_in}'
     tsv_file_out = f'{args.data_dir}/watershed/{tsv_out}'
-
 
     var_df = pd.read_table(tsv_file)
     #var_df = var_df.sort_values(['Chromosome', 'Position'])

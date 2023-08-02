@@ -11,6 +11,11 @@ import time
 import itertools 
 from tqdm import tqdm
 
+import warnings
+
+cadd_anno = ["GC", "CpG", "SIFTcat", "SIFTval","PolyPhenCat",
+             "PolyPhenVal", "bStatistic", "priPhCons","mamPhCons","verPhCons",
+             "priPhyloP","mamPhyloP","verPhyloP","GerpN","GerpS","PHRED"]
 
 # TODO are we interested in:
 # 'non_coding_transcript_variant', 'frameshift_variant', or 'PolyPhenCat' 'Unknown' category?
@@ -47,37 +52,48 @@ def to_cat(var, cat):
 
 def query_tabix(ch, s, e, opt=""):
     os.system(f"tabix -h {cadd_file} {ch}:{s}-{e} > /tmp/{ch}:{s}-{e}.tsv")
+    #print(f"tabix -h {cadd_file} {ch}:{s}-{e} > /tmp/{ch}:{s}-{e}.tsv")
     return pd.read_table(f"/tmp/{ch}:{s}-{e}.tsv", header=1)
 
-def get_cadd(ch,pos,ref,alt):
-    # Only supports SNVs at this time
-    if not (len(ref) == 1 and len(alt)== 1): 
-        return [""] * len(cadd_anno)
+def get_cadd(ch,pos,ref,alts):
+    alt_to_cadd = {}
+    ch = int(ch.strip('chr'))
+    pos = int(pos)
+    cadd_table = query_tabix(ch, pos, pos+1)
+    for alt in alts:
+        # Only supports SNVs at this time
+        if not (len(ref) == 1 and len(alt)== 1): 
+            alt_to_cadd[alt] = [""] * len(cadd_anno)
+            continue
+        if alt == '*': 
+            alt_to_cadd[alt] =  [""] * len(cadd_anno)
+            continue # TODO handle deletions, this comes from a different CADD file
 
-    # Query tabix
-    cadd_table = query_tabix(ch, pos, int(pos))
-    cadd_table = cadd_table[cadd_table["Alt"] == alt][cadd_anno]
-    if not len(cadd_table): 
-        return [""] * len(cadd_anno)
-    
-    cadd = cadd_table.max(numeric_only=True).array.astype(str).tolist()
-    svi = np.where(cadd_table.columns == "SIFTval")[0][0]
-    pvi = np.where(cadd_table.columns == "PolyPhenVal")[0][0]
+        cadd_table_alt = cadd_table[cadd_table["Alt"] == alt][cadd_anno]
+        if not len(cadd_table_alt): 
+            print(f"did not find {ch} {pos} {ref} {alt} in {cadd_file}")
+            alt_to_cadd[alt] =  [""] * len(cadd_anno)
+            continue
+        
+        cadd = cadd_table_alt.max(numeric_only=True).array.astype(str).tolist()
+        svi = np.where(cadd_table_alt.columns == "SIFTval")[0][0]
+        pvi = np.where(cadd_table_alt.columns == "PolyPhenVal")[0][0]
 
-    # Replace SIFT with categoriacal
-    sci = np.where(cadd_table.columns == "SIFTcat")[0][0]
-    sc = to_cat(cadd_table["SIFTcat"].astype(str).iloc[0], "SIFTcat") # implicitly takes a maximum over the table
-    sc = sc.values.reshape(-1).astype(str).tolist()
-    cadd[sci] = sc[0]
-    for e in range(len(sc[1:])): cadd.insert(sci+e,sc[e])
+        # Replace SIFT with categoriacal
+        sci = np.where(cadd_table_alt.columns == "SIFTcat")[0][0]
+        sc = to_cat(cadd_table_alt["SIFTcat"].astype(str).iloc[0], "SIFTcat") # implicitly takes a maximum over the table
+        sc = sc.values.reshape(-1).astype(str).tolist()
+        cadd[sci] = sc[0]
+        for e in range(len(sc[1:])): cadd.insert(sci+e,sc[e])
 
-    # Replace PolyPhen with categorical    
-    pci = np.where(cadd_table.columns == "PolyPhenCat")[0][0] + len(sc[1:])
-    pc = to_cat(cadd_table["PolyPhenCat"].astype(str).iloc[0], "PolyPhenCat") # implicitly takes maximum over the table
-    pc = pc.values.reshape(-1).astype(str).tolist()
-    cadd[pci]=pc[0]
-    for e in range(len(pc[1:])): cadd.insert(pci+e,pc[e])
-    return cadd
+        # Replace PolyPhen with categorical    
+        pci = np.where(cadd_table_alt.columns == "PolyPhenCat")[0][0] + len(sc[1:])
+        pc = to_cat(cadd_table_alt["PolyPhenCat"].astype(str).iloc[0], "PolyPhenCat") # implicitly takes maximum over the table
+        pc = pc.values.reshape(-1).astype(str).tolist()
+        cadd[pci]=pc[0]
+        for e in range(len(pc[1:])): cadd.insert(pci+e,pc[e])
+        alt_to_cadd[alt] = cadd
+    return alt_to_cadd
 
 def get_vep(l):
     if 'CSQ=' not in l[7]: return None
@@ -105,29 +121,69 @@ def get_vep(l):
 
     return vep_cat_df
     
-def process_line(l):
+def process_line(l, col_names, af_th=0.01):
+    
     l = l.strip("\n").split()
-    rare_idx = np.where(np.isin(l, ["0/1", "1/0", "1/1", "0|1", "1|0", "1|1"]))[0]
-    rare_ids = [cols[i] for i in rare_idx]
-    af = l[7].split("AFR_AF=")[1].split(";")[0]
+    ldict = dict(zip(col_names,l))
+    # TODO make sure there's always a format field in all our files
+    lformat = ldict["FORMAT"]
+
+    # Process INFO field
+    linfo = {}
+    missing = 0
+    for e in ldict["INFO"].split(';'):
+        kv = e.split('=')
+        if len(kv) == 2: linfo[kv[0]] = kv[1]
+        elif len(kv) == 0: continue 
+        elif len(kv) == 1: 
+            linfo[missing] = kv[0]
+            missing += 1
+        else: print(e); assert False
+    lgtype = [e.split(":")[0].replace('|', '/') for e in l[9:]]
+    col_ids = col_names[9:]    
+    rare_idx = np.where(~np.isin(lgtype, ["0/0", "./."]))[0]
+    rare_ids = [col_ids[i] for i in rare_idx]
+ 
+    # handle AF for each alt allele
+    afs = {}
+    idx_to_alt = {}
+    idx = 1
+    alts = ldict["ALT"].split(",")
+    alts_present = []
+    for ac,alt in zip(linfo["AC"].split(","), alts):
+        if ac == '0': 
+            idx += 1
+            continue
+        afs[alt] = int(ac) / int(linfo["AN"])  # linfo.split("AF=")[1].split(";")[0]
+        idx_to_alt[str(idx)] = alt
+        if afs[alt] > 0 and afs[alt] <= af_th: alts_present.append(alt) 
+        idx += 1
 
     vep_cat_df = get_vep(l)
     if vep_cat_df is None: return None
 
-    ch,pos,ref,alt = l[chidx], l[pidx], l[refidx], l[altidx]
-    cadd = get_cadd(ch,pos,ref,alt)
+    ch,pos,ref = ldict["CHROM"], ldict["POS"], ldict["REF"]
+    alt_to_cadd = get_cadd(ch,pos,ref,alts_present)
     
     out_lines = []
 
     # Create annotation line for each id, gene pair
-    for rid in set(rare_ids):
-        for gene in vep_cat_df.index:
-            
-            out_line = [rid, gene, ch, pos, af]
-            out_line.extend(vep_cat_df.loc[gene].array.astype(str).tolist())
-
-            out_line.extend(cadd)
-            out_lines.append("\t".join(out_line) + "\n")
+    for ridx in set(rare_idx):
+        rid = col_ids[ridx]  
+        alleles = lgtype[ridx].split("/")
+        for allele in np.unique(alleles):
+            if allele == '0': continue
+            alt = idx_to_alt[allele]
+            af = str(afs[alt])
+            # TODO this is a little makeshift, should be handled earlier I guess? 
+            # The input file is only filtered by the 1st allele's AF
+            if afs[alt] > af_th: continue
+            for gene in vep_cat_df.index:
+                
+                out_line = [rid, gene, ch, pos, af]
+                out_line.extend(vep_cat_df.loc[gene].array.astype(str).tolist())
+                out_line.extend(alt_to_cadd[alt])
+                out_lines.append("\t".join(out_line) + "\n")
 
     genes = vep_cat_df.index.array
     return "".join(out_lines), genes, rare_ids
@@ -147,7 +203,7 @@ def get_header():
     return "\t".join(header) + "\n"
 
 
-def do_work(in_queue, out_list):
+def do_work(in_queue, out_list, col_names, af_th):
     t1  = time.time()
     while True:
         if not in_queue.empty():
@@ -156,7 +212,7 @@ def do_work(in_queue, out_list):
             # exit signal 
             if line == None:
                 return
-            result = process_line(line)
+            result = process_line(line, col_names, af_th)
             out_list.append((line_no, result))
         # timeout
         elif time.time() - t1 > 1: return
@@ -167,35 +223,41 @@ if __name__ == "__main__":
     argParser.add_argument("--nw", default=32, type=int, help="number of workers (processes)")
     argParser.add_argument("--buf", default=100, type=int, help="buffer size per process")
     argParser.add_argument("--pop", default="AFR", type=str)
+    argParser.add_argument("--af_thresh", default=0.01, type=float)
+    argParser.add_argument("--postfix_in",
+                            #default='hg38a.ID.ba.VEP.rare', 
+                            default='30x.ID.VEP.bedtools.rare', 
+                            type=str)
+    argParser.add_argument("--postfix_out",
+                            default='ws',
+                            type=str)
     argParser.add_argument("--data_dir", default='/oak/stanford/groups/smontgom/erobb/data', type=str)
 
     args = argParser.parse_args()
-    pop = args.pop
     cadd_file = f"{args.data_dir}/cadd/whole_genome_SNVs_inclAnno.tsv.gz"
 
 
-    vcf_in = f"AF.all.{pop}.hg38a.ID.ba.VEP.rare.vcf"
-    tsv_out = f'AF.all.{pop}.hg38a.ID.ba.VEP.rare.ws.tsv'
-    gene_outliers = f'gene_outliers_{pop}.tsv'
+    #vcf_in = f"AF.all.{args.pop}.{args.postfix_in}.vcf"
+    #tsv_out = f'AF.all.{args.pop}.{args.postfix_in}.{args.postfix_out}.tsv'
+    vcf_in = f"all.{args.pop}.{args.postfix_in}.vcf"
+    tsv_out = f'all.{args.pop}.{args.postfix_in}.{args.postfix_out}.tsv'
+    gene_outliers = f'gene_outliers_{args.pop}.tsv'
     vcf_file = f"{args.data_dir}/vep/{vcf_in}"
 
-    # TODO read these from a file
-    vep_fields = 'Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|Existing_variation|DISTANCE|STRAND|FLAGS|SYMBOL_SOURCE|HGNC_ID|LoF|LoF_filter|LoF_flags|LoF_info'.split("|")
-    cadd_anno = ["GC", "CpG", "SIFTcat", "SIFTval","PolyPhenCat",
-                 "PolyPhenVal", "bStatistic", "priPhCons","mamPhCons","verPhCons",
-                 "priPhyloP","mamPhyloP","verPhyloP","GerpN","GerpS","PHRED"]
-
+    print(vcf_file)
     vcf = open(vcf_file, 'r')
-    cols = vcf.readline()[1:-1].split()
-
-    chidx = np.where(np.array(cols) == "CHROM")[0][0]
-    pidx = np.where(np.array(cols) == "POS")[0][0]
-    refidx = np.where(np.array(cols) == "REF")[0][0]
-    altidx = np.where(np.array(cols) == "ALT")[0][0]
-
-    lidx = np.where(np.array(vep_fields) == "LoF")[0][0]
-    vidx = np.where(np.array(vep_fields) == "Consequence")[0][0]
-    gidx = np.where(np.array(vep_fields) == "Gene")[0][0]
+    l = None
+    # Process VCF header
+    while True:
+        prev_l = l
+        hidx = vcf.tell()
+        l = vcf.readline()
+        if l[:14] == "##INFO=<ID=CSQ":
+            vep_fields = l.split("Format: ")[1].strip('>"').split('|')
+        if l[0] != '#':
+            col_names = prev_l[1:-1].split()
+            vcf.seek(hidx)
+            break
 
     out = open(f"{args.data_dir}/watershed/{tsv_out}", 'w')
     # TODO move the gout creation to residuals.ipynb
@@ -204,8 +266,13 @@ if __name__ == "__main__":
     header = get_header()
     out.write(header)
 
-    os.system(f"wc -l {vcf_file} > /tmp/wc_{pop}")
-    n = int(open(f"/tmp/wc_{pop}", "r").readlines()[0].split()[0])
+    # for debugging
+    #while True:
+    #    line = vcf.readline()
+    #    result = process_line(line, col_names)
+
+    os.system(f"wc -l {vcf_file} > /tmp/wc_{args.pop}")
+    n = int(open(f"/tmp/wc_{args.pop}", "r").readlines()[0].split()[0])
     num_workers = args.nw
     lines_ps = args.buf
 
@@ -215,7 +282,7 @@ if __name__ == "__main__":
 
     pool = []
     for i in range(num_workers):
-        p = Process(target=do_work, args=(work, results))
+        p = Process(target=do_work, args=(work, results, col_names, args.af_thresh))
         p.start()
         pool.append(p)
 
@@ -245,7 +312,7 @@ if __name__ == "__main__":
             work = manager.Queue(num_workers)
             pool = []
             for i in range(num_workers):
-                p = Process(target=do_work, args=(work, results))
+                p = Process(target=do_work, args=(work, results, col_names, args.af_thresh))
                 p.start()
                 pool.append(p)
 
