@@ -2,7 +2,8 @@
 
 
 args = commandArgs(trailingOnly=TRUE)
-pop = args[1]
+#pop = args[1]
+pop="ESN"
 #pops = c("ESN", "GWD", "LWK", "MKK", "YRI", "MSL")
 
 
@@ -25,9 +26,19 @@ row.names(expr) = expr[,"ID"] # set row name to gene ID
 covs_file = sprintf("/oak/stanford/groups/smontgom/mdegorte/durga/africa/fastqtl/SVs/%s/%s",pop,files[[pop]])
 covs = read.table(covs_file, header = T, sep = '\t', row.names = 1)
 
+# Add sex as a covariate
+pheno_file = sprintf("%s/1000g/igsr-afgr.unique.tsv", data_dir)
+pheno_df = read.table(pheno_file, header=T, sep='\t', row.names=1)
+sex = as.numeric(as.factor(pheno_df[colnames(covs),"Sex"]))
+covs = rbind(covs,sex)
+covs_df = data.frame(matrix(unlist(covs), nrow=length(covs[[1]])))
+colnames(covs_df) = colnames(covs)
+
+
 # Read in top eQTL
 eqtl_file=sprintf('%s/eqtls/sorted.byGene.dist.hwe.af.%s.top1.eQTL.nominal.hg38a.txt', data_dir, pop)
 eqtl_df = read.table(eqtl_file, header = T, row.names = 'feature')
+
 # Read in vcf data for each top eQTL
 vcf_file = sprintf("%s/eqtls/AF.all.%s.hg38aID.eQTLs.ba.vcf", data_dir, pop)
 vcf_df = read.table(vcf_file, header=T, skip=0, row.names="GENE")
@@ -58,7 +69,7 @@ colnames(resids) = colnames(expr)
 
 for(i in 1:ncol(expr)){ # for each gene! seems slow but not too bad
     gene = colnames(expr)[i]
-    if (!all(is.na(vcf_df[gene,]))) {
+    if (!all(is.na(vcf_df[gene,]))) { # if we have genotypes available for top eQTL
         gcovs = rbind(covs, vcf_df[1,])
     } else {
         gcovs = covs
@@ -67,6 +78,9 @@ for(i in 1:ncol(expr)){ # for each gene! seems slow but not too bad
     colnames(data) = c('deseq2ScaledGeneCounts', rownames(gcovs))
     model = lm(deseq2ScaledGeneCounts ~ ., data = data)
     resids[, i] = model$residuals
+    print(model$residuals)
+    print(model)
+    browser()
 }
 # Center and scale, then transpose
 resids = t(scale(resids))
@@ -102,8 +116,6 @@ w = data.frame(sapply(data.frame(w), function(x) as.integer(x)))
 rownames(w) = rownames(resids)
 indiv_noutliers = data.frame(rowSums(w))
 indiv_keep = rownames(indiv_noutliers)[which(indiv_noutliers < z_ind_filt)]
-
-browser()
 
 mean(indiv_noutliers[,])
 sqrt(var(indiv_noutliers[,]))
