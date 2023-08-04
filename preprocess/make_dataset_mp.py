@@ -12,6 +12,7 @@ import itertools
 from tqdm import tqdm
 
 import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 cadd_anno = ["GC", "CpG", "SIFTcat", "SIFTval","PolyPhenCat",
              "PolyPhenVal", "bStatistic", "priPhCons","mamPhCons","verPhCons",
@@ -50,28 +51,44 @@ def to_cat(var, cat):
     #if var == 'nan' and cat == 'PolyPhenCat': var = 'unknown'
     return pd.DataFrame(np.isin(cats[cat],var).astype(int).reshape(1,-1), columns=cats[cat])
 
-def query_tabix(ch, s, e, opt=""):
-    os.system(f"tabix -h {cadd_file} {ch}:{s}-{e} > /tmp/{ch}:{s}-{e}.tsv")
-    #print(f"tabix -h {cadd_file} {ch}:{s}-{e} > /tmp/{ch}:{s}-{e}.tsv")
-    return pd.read_table(f"/tmp/{ch}:{s}-{e}.tsv", header=1)
+def query_tabix(ch, s, e, SNV=True, indel=True):
+    # Tabix indexing is 1-based, and the range (s-e) is inclusive of s,e.
+    # VCF indexing is also 1-based
+    tables = []
+    if indel:
+        # search starting at pos-1 since cadd files list deletions as {prev base}{ref} / {ref}
+        os.system(f"tabix -h {cadd_file_indel} {ch}:{s-1}-{e} > /tmp/{ch}:{s}-{e}_indel.tsv")
+        tables.append(pd.read_table(f"/tmp/{ch}:{s}-{e}_indel.tsv", header=1))
+    if SNV: 
+        os.system(f"tabix -h {cadd_file} {ch}:{s}-{e} > /tmp/{ch}:{s}-{e}.tsv")
+        tables.append(pd.read_table(f"/tmp/{ch}:{s}-{e}.tsv", header=1))
+    return pd.concat(tables)
 
 def get_cadd(ch,pos,ref,alts):
     alt_to_cadd = {}
     ch = int(ch.strip('chr'))
     pos = int(pos)
-    cadd_table = query_tabix(ch, pos, pos+1)
-    for alt in alts:
-        # Only supports SNVs at this time
-        if not (len(ref) == 1 and len(alt)== 1): 
-            alt_to_cadd[alt] = [""] * len(cadd_anno)
-            continue
-        if alt == '*': 
-            alt_to_cadd[alt] =  [""] * len(cadd_anno)
-            continue # TODO handle deletions, this comes from a different CADD file
+    end = pos + len(ref) - 1
+    if ref == '*': raise("found a * ref!")
 
-        cadd_table_alt = cadd_table[cadd_table["Alt"] == alt][cadd_anno]
-        if not len(cadd_table_alt): 
-            print(f"did not find {ch} {pos} {ref} {alt} in {cadd_file}")
+    alt_len = np.array([ (0 if alt == '*' else len(alt)) for alt in alts]) 
+    SNV, indel = np.any(alt_len == 1), np.any(alt_len != 1)
+    cadd_table = query_tabix(ch, pos, end, SNV, indel)
+
+    if '*' in alts: # deletions are indexed at pos-1 in cadd files 
+        del_cadd_table = cadd_table.loc[(cadd_table["Ref"].str.match(f".+{ref}$")) & (cadd_table["Pos"] == pos-1)]
+    cadd_table = cadd_table.loc[(cadd_table["Ref"] == ref) & (cadd_table["Pos"] == pos)]
+
+    for alt in alts:
+        if alt == '*': 
+            del_alts = del_cadd_table["Ref"].str.replace(f'{ref}$','')
+            cadd_table_alt = del_cadd_table.loc[del_cadd_table["Alt"] == del_alts]
+        else: 
+            cadd_table_alt = cadd_table[cadd_table["Alt"] == alt][cadd_anno]
+
+        if not len(cadd_table_alt):
+            # a lot of indels not in gnomad, so suppress this warning for now 
+            #print(f"did not find {ch} {pos} {ref} {alt} in {cadd_file} or {cadd_file_indel}")
             alt_to_cadd[alt] =  [""] * len(cadd_anno)
             continue
         
@@ -235,7 +252,7 @@ if __name__ == "__main__":
 
     args = argParser.parse_args()
     cadd_file = f"{args.data_dir}/cadd/whole_genome_SNVs_inclAnno.tsv.gz"
-
+    cadd_file_indel = f"{args.data_dir}/cadd/gnomad.genomes.r3.0.indel_inclAnno.tsv.gz"
 
     #vcf_in = f"AF.all.{args.pop}.{args.postfix_in}.vcf"
     #tsv_out = f'AF.all.{args.pop}.{args.postfix_in}.{args.postfix_out}.tsv'
@@ -270,7 +287,8 @@ if __name__ == "__main__":
     #while True:
     #    line = vcf.readline()
     #    result = process_line(line, col_names)
-
+    #    print(result[0])
+ 
     os.system(f"wc -l {vcf_file} > /tmp/wc_{args.pop}")
     n = int(open(f"/tmp/wc_{args.pop}", "r").readlines()[0].split()[0])
     num_workers = args.nw
@@ -301,6 +319,7 @@ if __name__ == "__main__":
                 out_line, genes, rid = r[1]
                 if out_line is not None and out_line != "":
                     out.write(out_line)
+                    print(out_line)
                     for gene in genes:
                         gout.write("\t".join([gene] + rid) + "\n")
             out.flush()
