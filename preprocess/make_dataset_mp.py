@@ -69,7 +69,6 @@ def get_cadd(ch,pos,ref,alts):
     ch = int(ch.strip('chr'))
     pos = int(pos)
     end = pos + len(ref) - 1
-    if ref == '*': raise("found a * ref!")
 
     alt_len = np.array([ (0 if alt == '*' else len(alt)) for alt in alts]) 
     SNV, indel = np.any(alt_len == 1), np.any(alt_len != 1)
@@ -138,12 +137,10 @@ def get_vep(l):
 
     return vep_cat_df
     
-def process_line(l, col_names, af_th=0.01):
+def process_line(l, col_names):
     
     l = l.strip("\n").split()
     ldict = dict(zip(col_names,l))
-    # TODO make sure there's always a format field in all our files
-    lformat = ldict["FORMAT"]
 
     # Process INFO field
     linfo = {}
@@ -161,8 +158,7 @@ def process_line(l, col_names, af_th=0.01):
     rare_idx = np.where(~np.isin(lgtype, ["0/0", "./."]))[0]
     rare_ids = [col_ids[i] for i in rare_idx]
  
-    # handle AF for each alt allele
-    afs = {}
+    # check which alleles are present
     idx_to_alt = {}
     idx = 1
     alts = ldict["ALT"].split(",")
@@ -171,9 +167,8 @@ def process_line(l, col_names, af_th=0.01):
         if ac == '0': 
             idx += 1
             continue
-        afs[alt] = int(ac) / int(linfo["AN"])  # linfo.split("AF=")[1].split(";")[0]
         idx_to_alt[str(idx)] = alt
-        if afs[alt] > 0 and afs[alt] <= af_th: alts_present.append(alt) 
+        if  int(ac) > 0: alts_present.append(alt) 
         idx += 1
 
     vep_cat_df = get_vep(l)
@@ -191,13 +186,8 @@ def process_line(l, col_names, af_th=0.01):
         for allele in np.unique(alleles):
             if allele == '0': continue
             alt = idx_to_alt[allele]
-            af = str(afs[alt])
-            # TODO this is a little makeshift, should be handled earlier I guess? 
-            # The input file is only filtered by the 1st allele's AF
-            if afs[alt] > af_th: continue
             for gene in vep_cat_df.index:
-                
-                out_line = [rid, gene, ch, pos, af]
+                out_line = [rid, gene, ch, pos]
                 out_line.extend(vep_cat_df.loc[gene].array.astype(str).tolist())
                 out_line.extend(alt_to_cadd[alt])
                 out_lines.append("\t".join(out_line) + "\n")
@@ -207,7 +197,7 @@ def process_line(l, col_names, af_th=0.01):
 
 
 def get_header():
-    header = ["SubjectID", "GeneName", "Chromosome", "Position", "AF"]
+    header = ["SubjectID", "GeneName", "Chromosome", "Position"]
     header.extend(cats["Consequence"])
     header.extend(cats["LoF"])
 
@@ -220,7 +210,7 @@ def get_header():
     return "\t".join(header) + "\n"
 
 
-def do_work(in_queue, out_list, col_names, af_th):
+def do_work(in_queue, out_list, col_names):
     t1  = time.time()
     while True:
         if not in_queue.empty():
@@ -229,7 +219,7 @@ def do_work(in_queue, out_list, col_names, af_th):
             # exit signal 
             if line == None:
                 return
-            result = process_line(line, col_names, af_th)
+            result = process_line(line, col_names)
             out_list.append((line_no, result))
         # timeout
         elif time.time() - t1 > 1: return
@@ -240,7 +230,6 @@ if __name__ == "__main__":
     argParser.add_argument("--nw", default=32, type=int, help="number of workers (processes)")
     argParser.add_argument("--buf", default=100, type=int, help="buffer size per process")
     argParser.add_argument("--pop", default="AFR", type=str)
-    argParser.add_argument("--af_thresh", default=0.01, type=float)
     argParser.add_argument("--postfix_in",
                             #default='hg38a.ID.ba.VEP.rare', 
                             default='30x.ID.VEP.bedtools.rare', 
@@ -300,7 +289,7 @@ if __name__ == "__main__":
 
     pool = []
     for i in range(num_workers):
-        p = Process(target=do_work, args=(work, results, col_names, args.af_thresh))
+        p = Process(target=do_work, args=(work, results, col_names))
         p.start()
         pool.append(p)
 
@@ -319,7 +308,6 @@ if __name__ == "__main__":
                 out_line, genes, rid = r[1]
                 if out_line is not None and out_line != "":
                     out.write(out_line)
-                    print(out_line)
                     for gene in genes:
                         gout.write("\t".join([gene] + rid) + "\n")
             out.flush()
@@ -331,7 +319,7 @@ if __name__ == "__main__":
             work = manager.Queue(num_workers)
             pool = []
             for i in range(num_workers):
-                p = Process(target=do_work, args=(work, results, col_names, args.af_thresh))
+                p = Process(target=do_work, args=(work, results, col_names))
                 p.start()
                 pool.append(p)
 
