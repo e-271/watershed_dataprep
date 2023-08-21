@@ -8,7 +8,10 @@ ln -s $VEP_HIDDEN .vep
 """
 
 
-# TODO add conda env
+# TODO add conda envs
+# TODO make a "rule all" and generalize other rule naming schemes
+# TODO add all non-VCF inputs to config
+# TODO put config 
 
 configfile: "config/config.yaml"
 
@@ -55,32 +58,37 @@ rule filter_rare:
         '''
 
 # Annotate samples with CADD
-# Due to a bug in vcfanno, we need to combine the CADD SNV and indel annotation TSV files before running this.
+# TODO may not be handling deletions properly due to differences in format between vcf and cadd
 rule cadd:
     input:
-        vcf="data/vep/{prefix}.filt.ref_af.rare.vcf.gz",
-        config="config/cadd.conf"
-    output: "data/vep/{prefix}.filt.ref_af.rare.CADD.vcf",
+        vcf="data/vcf/{prefix}.filt.ref_af.rare.vcf.gz",
+        cadd_cols="data/cadd/cadd_columns",
+        cadd="data/cadd/whole_genome_SNVs_inclAnno.tsv.gz",
+        cadd_indel="data/cadd/gnomad.genomes.r3.0.indel_inclAnno.tsv.gz"
+    output: "data/vcf/{prefix}.filt.ref_af.rare.CADD.vcf.gz"
     shell:
        '''
-       bcftools view {input.vcf} | sed 's/chr//' | vcfanno {input.config} > {output}
+        sh scripts/anno_cadd.sh {input.cadd} {input.cadd_indel} {input.cadd_cols} {input.vcf} | bgzip > {output}
+       tabix {output}
        '''
 
 # Annotate rare variants with VEP
 # Note that VEP does not support multithreading with the loftee plugin, so this needs to be run single-threaded.
-# TODO setup a Singularity image with loftee and put on github
+# TODO VEP --distance=5000 by default for annotating upstream/downstream effects, we want this to be 10k presumably?
 rule vep:
     input:
         vcf="data/vcf/{prefix}.filt.ref_af.rare.vcf.gz",
         loftee_path=".vep/Plugins"
-    output: "data/vep/{prefix}.filt.ref_af.rare.VEP.vcf"
+    output: 
+        vep="data/vcf/{prefix}.filt.ref_af.rare.VEP.vcf",
+        vepgz="data/vcf/{prefix}.filt.ref_af.rare.VEP.vcf.gz",
     shell:
         '''
-ensembl-vep/vep \
+        ensembl-vep/vep \
 --verbose \
 --vcf \
 -i {input.vcf} \
--o {output} \
+-o {output.vep} \
 --no_stats \
 --force_overwrite \
 --offline \
@@ -90,17 +98,75 @@ human_ancestor_fa:data/vep/hg38/human_ancestor.fa.gz,\
 loftee_path:{input.loftee_path},\
 conservation_file:data/vep/hg38/loftee.sql,\
 gerp_bigwig:data/vep/hg38/gerp_conservation_scores.homo_sapiens.GRCh38.bw
+        bgzip --keep {output.vep}
+        tabix {output.vepgz}
         '''
 
-# Convert to Watershed format
-# Split VEP annotations and subset to 'consequence' and 'LoF' fields
-# Filter samples by minimum AF<0.01 and print 1 sample per line
-rule watershed_format:
-    input: "data/vep/{prefix}.ref_af.rare.VEP.CADD.vcf"
-    output: "data/vep/{prefix}.ref_af.rare.VEP.CADD.split.vcf"
+# Split all VEP annotations into INFO/* fields
+rule split_vep:
+    input: "data/vcf/{prefix}.filt.ref_af.rare.VEP.vcf.gz"
+    output: "data/vcf/{prefix}.filt.ref_af.rare.VEP_split.vcf.gz"
     shell:
         '''
-         bcftools +split-vep {input} -f '[%SAMPLE %CHROM %POS %REF %ALT %TYPE %GT %AF %Allele %Gene %Consequence %LoF\n]' -i 'GT="alt" & AF<0.01' > {output}
+        fields=$(bcftools +split-vep {input} -l | cut -f 2 | tr '\n' ',')
+        for l in {{1..22}} X Y; do echo chr$l $l; done > rename_chr.tmp
+        bcftools +split-vep {input} -c $fields -d | bcftools annotate --rename-chrs rename_chr.tmp -x INFO/CSQ -o {output} 
+        tabix {output}
         '''
+
+# Can run VEP and CADD simultaneously & combine them afterwards to save time.
+rule combine_annotations:
+    input:
+        vcf1="data/vcf/{prefix}.filt.ref_af.rare.CADD.vcf.gz",
+        vcf2="data/vcf/{prefix}.filt.ref_af.rare.VEP_split.vcf.gz",
+    output:
+        "data/vcf/{prefix}.filt.ref_af.rare.CADD.VEP_split.vcf.gz",
+    shell:
+        '''
+        bcftools annotate -a {input.vcf1} -c INFO {input.vcf2} -o {output}
+        tabix {output}
+        '''
+
+rule split_samples:
+    input:
+        "data/vcf/{prefix}.filt.ref_af.rare.CADD.VEP_split.vcf.gz"
+    output:
+        directory("data/vcf/{prefix}.filt.ref_af.rare.CADD.VEP_split.id_split") # Is a directory of <id>.vcf
+    shell:
+        '''
+        bcftools +split {input} -o {output} -i 'GT="alt"'
+        for f in {output}/*; do
+            bgzip $f 
+            tabix $f.gz
+        done
+        '''
+
+# input.gencode contains 4 columns: gene_id, chr, pos_start, pos_end
+# input.fields contains vcf INFO fields to include in Watershed annotations (one per line)
+# TODO add gencode file to config 
+# Very rough estimate is that this will take about 24 hours (guessing 5s / gene). 
+rule aggregate:
+    input:
+        vcf=directory("data/vcf/{prefix}"),
+        gencode="data/gencode/gencode.v43.gene_pos.protein_lincRNA.tsv",
+        fields="config/watershed_fields"
+    output: 
+        "data/watershed/{prefix}.agg.tsv"
+    shell:
+        '''
+        sh scripts/agg.sh {input.vcf} {input.fields} {input.gencode} > {output}
+        '''
+
+# I am not sure this is something bcftools can do.
+# It may be possible but is not elegant. I think it's best if I can append together all categoricals during the aggregation step, and then handle max/min/convert to categorical after it is in a TSV format.
+rule encode_categorical:
+    input: 
+       vcf="data/vcf/{prefix}.vcf",
+       cat="config/categories" # TODO maybe this comes from the config file
+    output: "data/vcf/{prefix}.cat.vcf"
+    shell:
+        '''
+        '''
+
 
 
