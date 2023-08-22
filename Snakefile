@@ -62,7 +62,7 @@ rule filter_rare:
 rule cadd:
     input:
         vcf="data/vcf/{prefix}.filt.ref_af.rare.vcf.gz",
-        cadd_cols="data/cadd/cadd_columns",
+        cadd_cols="config/cadd_columns",
         cadd="data/cadd/whole_genome_SNVs_inclAnno.tsv.gz",
         cadd_indel="data/cadd/gnomad.genomes.r3.0.indel_inclAnno.tsv.gz"
     output: "data/vcf/{prefix}.filt.ref_af.rare.CADD.vcf.gz"
