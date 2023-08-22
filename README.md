@@ -13,6 +13,7 @@ Mid priority:
     * [ ] Document where to download gencode files
     * [ ] Move content of scripts/gtf_filter.sh,pad.gtf.exons.py,process_gencode.sh into Snakemake pipeline
 - [ ] Document configuration and all needed data input
+- [ ] Add eOutlier residual calculation script to snakefile
 
 Low priority:
 - [ ] Add phyloP annotations
