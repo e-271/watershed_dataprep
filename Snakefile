@@ -157,6 +157,36 @@ rule aggregate:
         sh scripts/agg.sh {input.vcf} {input.fields} {input.gencode} > {output}
         '''
 
+# Outlier scores are (gene) x (sample id).
+# TODO may want to simplify Watershed-format filename so the 2 inputs can share a prefix
+rule add_outlier_scores:
+    input:
+        tsv="data/watershed/{prefix}.filt.ref_af.rare.CADD.VEP_split.id_split.agg.tsv",
+        scores="data/outliers/{prefix}_{type}.tsv"
+    output:
+        tsv="data/watershed/{prefix}.filt.ref_af.rare.CADD.VEP_split.id_split.agg.{type}.tsv",
+        scores=temp("data/outliers/{prefix}_{type}.split.tsv")
+    shell:
+        '''
+        # Split outlier scores to 1 line per sample, and combine (gene_id, sample_id) columns
+        cat {input.scores} | \
+        awk '{{if(NR==1){{split($0,a,FS)}}else{{for(i=2; i<NF; i++){{sub(/\.[0-9][0-9]*/, "", $1); print a[i] "_" $1 FS $i }} }} }}' | sort -k1 \
+        > {output.scores}
+        # Preserve header & add outlier type to last column
+        head -n 1 {input.tsv} | sed 's/$/ {wildcards.type}/' > {output.tsv}
+        # Combine first 2 columns to single column, join with outlier scores, and then re-split first 2 columns
+        tail -n +2 {input.tsv} | sed 's/\s/_/' | sort -k1 | join - {output.scores} | sed 's/_/ /' >> {output.tsv}
+        '''   
+
+rule label_pairs:
+    input:
+        tsv="data/watershed/{prefix}.agg.tsv",
+        scores="data/watershed/{prefix}"
+    output:
+    shell:
+        '''
+        ''' 
+
 # I am not sure this is something bcftools can do.
 # It may be possible but is not elegant. I think it's best if I can append together all categoricals during the aggregation step, and then handle max/min/convert to categorical after it is in a TSV format.
 rule encode_categorical:
