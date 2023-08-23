@@ -5,8 +5,8 @@ Data preprocessing pipeline for [WatershedR](https://github.com/nicolerg/Watersh
 
 High priority:
 - [ ] Convert categorical variables to binary vector
-- [ ] Add eOutlier scores
-- [ ] Add pair labels
+- [x] Add eOutlier scores
+- [x] Add pair labels
 
 Mid priority:
 - [ ] Gencode

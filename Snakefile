@@ -178,13 +178,29 @@ rule add_outlier_scores:
         tail -n +2 {input.tsv} | sed 's/\s/_/' | sort -k1 | join - {output.scores} | sed 's/_/ /' >> {output.tsv}
         '''   
 
+# Label individuals with the same set of variants within each gene window.
 rule label_pairs:
     input:
-        tsv="data/watershed/{prefix}.agg.tsv",
-        scores="data/watershed/{prefix}"
+        "data/watershed/{prefix}.tsv",
     output:
+        pairs="data/watershed/{prefix}.pairs.tsv",
+        pairlabel="data/watershed/{prefix}.pairlabel.tsv"
     shell:
         '''
+        echo "SubjectID Gene N Pair" > {output.pairs}
+        # Get unique combinations of (gene, variant positions, alt alleles) & label those with N>=2
+        tail -n +2 {input} | sort -t' ' -k2 -k3 -k4 | \
+            cut -d' ' -f 1-4 | \
+            uniq -f1 -c | awk '$1 >= 2 ' | nl | \
+            awk '{print $3 "_" $4 FS $2 FS $1}' | \
+            sort -k1 \
+        >> {output.pairs}
+        # Add pair labels to final column of Watershed tsv file, and remove (position, alt) columns
+        head -n 1 {input} | sed 's/$/ Pair/' > {ouput.tsv}
+        tail -n +2 {input} | sed 's/\s/_/' | \
+            sort -k1 | join -a1 {output.pairs} | \
+            sed 's/_/ /' | cut -d' ' -f1,2,5-  \
+        >> {output.tsv}
         ''' 
 
 # I am not sure this is something bcftools can do.
