@@ -1,6 +1,6 @@
 
-reference: 30x.AFGR.filt.sample_af
-
+af_reference: 30x.AFGR.filt.sample_af
+gencode: data/gencode/gencode.v27.annotation.chr-renamed.gtf 
 
 
 

@@ -4,10 +4,13 @@ vcf_dir=$1
 fields=$2
 gencode=$3
 
-# TODO min function will need to handle null/missing values more explicitly
-alias max="sed 's/[,&]/\n/g' | sort -n | tail -n 1"
-alias unique="sed 's/[,&]/\n/g' | sort -u | tr '\n' ',' | sed 's/,$//'"
+alias max="sort -n | tail -n 1"
+alias min="sort -n | head -n 1"
+alias unique="sort -u | tr '\n' ',' | sed 's/,$//'"
 alias append="tr '\n' ',' | sed 's/,$//'"
+
+alias split="sed 's/[,&]/\n/g'"
+alias clean_missing="sed 's/\.//g' | sed 's/NA//g'"
 
 format=$(cat $fields | awk -F, '{ORS=""; print "%" $1 "\t"}')
 format="[${format}\n]"
@@ -28,7 +31,9 @@ while IFS=' ' read -r gene chr start end; do
         i=1
         line="${id}\t${gene}"
         while IFS=',' read field func; do
-            agg=$(echo "$q" | cut -f$i | eval $func)
+            echo "$q" > tmp
+            echo "cut -f$i | split | clean_missing | eval $func"
+            agg=$(echo "$q" | cut -f$i | split | clean_missing | eval $func)
             line="${line}\t${agg}"
             ((i++))
         done < $fields

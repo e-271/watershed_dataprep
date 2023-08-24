@@ -11,7 +11,6 @@ ln -s $VEP_HIDDEN .vep
 # TODO add conda envs
 # TODO make a "rule all" and generalize other rule naming schemes
 # TODO add all non-VCF inputs to config
-# TODO put config 
 
 configfile: "config/config.yaml"
 
@@ -39,7 +38,7 @@ rule update_afs:
 rule update_pop_afs:
     input:
        vcf="data/vcf/{prefix}.filt.vcf.gz",
-       ref=expand("data/vcf/{reference}.vcf.gz", reference=config["reference"])
+       ref=expand("data/vcf/{reference}.vcf.gz", reference=config["af_reference"])
     output: "data/vcf/{prefix}.filt.ref_af.vcf.gz"
     shell:
         '''
@@ -144,14 +143,13 @@ rule split_samples:
 # input.gencode contains 4 columns: gene_id, chr, pos_start, pos_end
 # input.fields contains vcf INFO fields to include in Watershed annotations (one per line)
 # TODO add gencode file to config 
-# Very rough estimate is that this will take about 24 hours (guessing 5s / gene). 
 rule aggregate:
     input:
-        vcf=directory("data/vcf/{prefix}"),
+        vcf=directory("data/vcf/{prefix}.filt.ref_af.rare.CADD.VEP_split.id_split"),
         gencode="data/gencode/gencode.v43.gene_pos.protein_lincRNA.tsv",
-        fields="config/watershed_fields"
+        fields="config/aggregate"
     output: 
-        "data/watershed/{prefix}.agg.tsv"
+        "data/watershed/{prefix}.tsv"
     shell:
         '''
         sh scripts/agg.sh {input.vcf} {input.fields} {input.gencode} > {output}
@@ -159,12 +157,13 @@ rule aggregate:
 
 # Outlier scores are (gene) x (sample id).
 # TODO may want to simplify Watershed-format filename so the 2 inputs can share a prefix
+# TODO consider doing this with xsv
 rule add_outlier_scores:
     input:
-        tsv="data/watershed/{prefix}.filt.ref_af.rare.CADD.VEP_split.id_split.agg.tsv",
+        tsv="data/watershed/{prefix}.tsv",
         scores="data/outliers/{prefix}_{type}.tsv"
     output:
-        tsv="data/watershed/{prefix}.filt.ref_af.rare.CADD.VEP_split.id_split.agg.{type}.tsv",
+        tsv="data/watershed/{prefix}.{type}.tsv",
         scores=temp("data/outliers/{prefix}_{type}.split.tsv")
     shell:
         '''
@@ -176,42 +175,44 @@ rule add_outlier_scores:
         head -n 1 {input.tsv} | sed 's/$/ {wildcards.type}/' > {output.tsv}
         # Combine first 2 columns to single column, join with outlier scores, and then re-split first 2 columns
         tail -n +2 {input.tsv} | sed 's/\s/_/' | sort -k1 | join - {output.scores} | sed 's/_/ /' >> {output.tsv}
+        rm {output.scores}
         '''   
 
 # Label individuals with the same set of variants within each gene window.
+# TODO consider doing this with xsv
 rule label_pairs:
     input:
         "data/watershed/{prefix}.tsv",
     output:
-        pairs="data/watershed/{prefix}.pairs.tsv",
+        pairs=temp("data/watershed/{prefix}.pairs.tsv"),
         pairlabel="data/watershed/{prefix}.pairlabel.tsv"
     shell:
         '''
-        echo "SubjectID Gene N Pair" > {output.pairs}
         # Get unique combinations of (gene, variant positions, alt alleles) & label those with N>=2
         tail -n +2 {input} | sort -t' ' -k2 -k3 -k4 | \
             cut -d' ' -f 1-4 | \
             uniq -f1 -c | awk '$1 >= 2 ' | nl | \
-            awk '{print $3 "_" $4 FS $2 FS $1}' | \
+            awk '{{print $3 "_" $4 FS $1 FS $2}}' | \
             sort -k1 \
-        >> {output.pairs}
+        > {output.pairs}
         # Add pair labels to final column of Watershed tsv file, and remove (position, alt) columns
-        head -n 1 {input} | sed 's/$/ Pair/' > {ouput.tsv}
+        head -n 1 {input} | cut -d' ' -f1,2,5-  | sed 's/$/ Pair PairN/' > {output.pairlabel}
         tail -n +2 {input} | sed 's/\s/_/' | \
-            sort -k1 | join -a1 {output.pairs} | \
+            sort -k1 | join -a1 - {output.pairs} | \
             sed 's/_/ /' | cut -d' ' -f1,2,5-  \
-        >> {output.tsv}
+        >> {output.pairlabel}
+        rm {output.pairs}
         ''' 
 
-# I am not sure this is something bcftools can do.
-# It may be possible but is not elegant. I think it's best if I can append together all categoricals during the aggregation step, and then handle max/min/convert to categorical after it is in a TSV format.
+# Encode categorical variables (represented as comma-separated strings) as binary vectors.
 rule encode_categorical:
     input: 
-       vcf="data/vcf/{prefix}.vcf",
-       cat="config/categories" # TODO maybe this comes from the config file
+       vcf="data/vcf/{prefix}.tsv",
+       cat="config/categorical"
     output: "data/vcf/{prefix}.cat.vcf"
     shell:
         '''
+        Rscript scripts/encode.cat.R {input.vcf} {input.cat} {output}
         '''
 
 
