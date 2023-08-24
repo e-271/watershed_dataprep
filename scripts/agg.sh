@@ -31,8 +31,6 @@ while IFS=' ' read -r gene chr start end; do
         i=1
         line="${id}\t${gene}"
         while IFS=',' read field func; do
-            echo "$q" > tmp
-            echo "cut -f$i | split | clean_missing | eval $func"
             agg=$(echo "$q" | cut -f$i | split | clean_missing | eval $func)
             line="${line}\t${agg}"
             ((i++))
