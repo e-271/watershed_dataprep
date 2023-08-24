@@ -4,6 +4,10 @@ Data preprocessing pipeline for [WatershedR](https://github.com/nicolerg/Watersh
 ## TODOs
 
 High priority:
+- [ ] Convert z-scores to p-scores
+- [ ] Impute null values
+- [ ] Prepare test set (delete extra individuals for N>2 pairs)
+- [ ] Update script to run Watershed 
 - [x] Convert categorical variables to binary vector
 - [x] Add eOutlier scores
 - [x] Add pair labels
