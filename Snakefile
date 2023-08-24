@@ -18,6 +18,7 @@ configfile: "config/config.yaml"
 rule filter:
     input: "data/vcf/{prefix}.vcf.gz"
     output: "data/vcf/{prefix}.filt.vcf.gz"
+    conda: "envs/watershed.yml"
     shell:
        '''
        bcftools view -f PASS {input} -o {output}
@@ -28,6 +29,7 @@ rule filter:
 rule update_afs:
     input: "data/vcf/{prefix}.filt.vcf.gz"
     output: "data/vcf/{prefix}.filt.sample_af.vcf.gz"
+    conda: "envs/watershed.yml"
     shell:
         '''
         bcftools +fill-tags {input} -o {output} -- -t AF
@@ -40,6 +42,7 @@ rule update_pop_afs:
        vcf="data/vcf/{prefix}.filt.vcf.gz",
        ref=expand("data/vcf/{reference}.vcf.gz", reference=config["af_reference"])
     output: "data/vcf/{prefix}.filt.ref_af.vcf.gz"
+    conda: "envs/watershed.yml"
     shell:
         '''
         bcftools annotate -a {input.ref} -c INFO/AF {input.vcf} -o {output}
@@ -50,6 +53,7 @@ rule update_pop_afs:
 rule filter_rare:
     input: "data/vcf/{prefix}.filt.ref_af.vcf.gz" 
     output: "data/vcf/{prefix}.filt.ref_af.rare.vcf.gz" 
+    conda: "envs/watershed.yml"
     shell:
         '''
         bcftools norm -m -any {input} |  bcftools view --exclude "AF>0.01 | AC=0" -o {output}
@@ -65,6 +69,7 @@ rule cadd:
         cadd="data/cadd/whole_genome_SNVs_inclAnno.tsv.gz",
         cadd_indel="data/cadd/gnomad.genomes.r3.0.indel_inclAnno.tsv.gz"
     output: "data/vcf/{prefix}.filt.ref_af.rare.CADD.vcf.gz"
+    conda: "envs/watershed.yml"
     shell:
        '''
         sh scripts/anno_cadd.sh {input.cadd} {input.cadd_indel} {input.cadd_cols} {input.vcf} | bgzip > {output}
@@ -81,6 +86,7 @@ rule vep:
     output: 
         vep="data/vcf/{prefix}.filt.ref_af.rare.VEP.vcf",
         vepgz="data/vcf/{prefix}.filt.ref_af.rare.VEP.vcf.gz",
+    conda: "envs/vep.yml"
     shell:
         '''
         ensembl-vep/vep \
@@ -105,6 +111,7 @@ gerp_bigwig:data/vep/hg38/gerp_conservation_scores.homo_sapiens.GRCh38.bw
 rule split_vep:
     input: "data/vcf/{prefix}.filt.ref_af.rare.VEP.vcf.gz"
     output: "data/vcf/{prefix}.filt.ref_af.rare.VEP_split.vcf.gz"
+    conda: "envs/watershed.yml"
     shell:
         '''
         fields=$(bcftools +split-vep {input} -l | cut -f 2 | tr '\n' ',')
@@ -120,6 +127,7 @@ rule combine_annotations:
         vcf2="data/vcf/{prefix}.filt.ref_af.rare.VEP_split.vcf.gz",
     output:
         "data/vcf/{prefix}.filt.ref_af.rare.CADD.VEP_split.vcf.gz",
+    conda: "envs/watershed.yml"
     shell:
         '''
         bcftools annotate -a {input.vcf1} -c INFO {input.vcf2} -o {output}
@@ -131,6 +139,7 @@ rule split_samples:
         "data/vcf/{prefix}.filt.ref_af.rare.CADD.VEP_split.vcf.gz"
     output:
         directory("data/vcf/{prefix}.filt.ref_af.rare.CADD.VEP_split.id_split") # Is a directory of <id>.vcf
+    conda: "envs/watershed.yml"
     shell:
         '''
         bcftools +split {input} -o {output} -i 'GT="alt"'
@@ -150,6 +159,7 @@ rule aggregate:
         fields="config/aggregate"
     output: 
         "data/watershed/{prefix}.tsv"
+    conda: "envs/watershed.yml"
     shell:
         '''
         sh scripts/agg.sh {input.vcf} {input.fields} {input.gencode} > {output}
@@ -165,6 +175,7 @@ rule add_outlier_scores:
     output:
         tsv="data/watershed/{prefix}.{type}.tsv",
         scores=temp("data/outliers/{prefix}_{type}.split.tsv")
+    conda: "envs/watershed.yml"
     shell:
         '''
         # Split outlier scores to 1 line per sample, and combine (gene_id, sample_id) columns
@@ -186,6 +197,7 @@ rule label_pairs:
     output:
         pairs=temp("data/watershed/{prefix}.pairs.tsv"),
         pairlabel="data/watershed/{prefix}.pairlabel.tsv"
+    conda: "envs/watershed.yml"
     shell:
         '''
         # Get unique combinations of (gene, variant positions, alt alleles) & label those with N>=2
@@ -204,12 +216,13 @@ rule label_pairs:
         rm {output.pairs}
         ''' 
 
-# Encode categorical variables (represented as comma-separated strings) as binary vectors.
+# Encode categorical variables (represented in a single column as comma-separated strings) as binary vectors.
 rule encode_categorical:
     input: 
        vcf="data/vcf/{prefix}.tsv",
        cat="config/categorical"
     output: "data/vcf/{prefix}.cat.vcf"
+    conda: "envs/watershed.yml"
     shell:
         '''
         Rscript scripts/encode.cat.R {input.vcf} {input.cat} {output}

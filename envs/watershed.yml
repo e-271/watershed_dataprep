@@ -1,0 +1,12 @@
+name: watershed
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - snakemake
+  - htslib
+  - bcftools
+  - vcfanno
+  - r-devtools
+prefix: /home/erobb/miniconda3/envs/watershed
