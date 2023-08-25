@@ -14,7 +14,20 @@ ln -s $VEP_HIDDEN .vep
 
 configfile: "config/config.yaml"
 
-# Filter to VQSR "PASS"
+
+# Split outlier scores to 1 line per sample, and remove .[0-9]* in Ensemble identifiers
+rule format_outliers:
+    input:
+        "data/outliers/{prefix}_{type}.tsv"
+    output:
+        "data/outliers/{prefix}_{type}.split.tsv"
+    conda: "envs/watershed.yml"
+    shell:
+        '''
+        sh scripts/flatten.sh {input} {wildcards.type} > {output}
+        '''
+
+# Filter VCF to VQSR "PASS"
 rule filter:
     input: "data/vcf/{prefix}.vcf.gz"
     output: "data/vcf/{prefix}.filt.vcf.gz"
@@ -165,68 +178,73 @@ rule aggregate:
         sh scripts/agg.sh {input.vcf} {input.fields} {input.gencode} > {output}
         '''
 
-# Outlier scores are (gene) x (sample id).
-# TODO may want to simplify Watershed-format filename so the 2 inputs can share a prefix
-# TODO consider doing this with xsv
+# Outlier scores are stored in an array of (gene) x (sample id).
 rule add_outlier_scores:
     input:
         tsv="data/watershed/{prefix}.tsv",
-        scores="data/outliers/{prefix}_{type}.tsv"
+        scores="data/outliers/{prefix}_{type}.split.tsv"
     output:
-        tsv="data/watershed/{prefix}.{type}.tsv",
-        scores=temp("data/outliers/{prefix}_{type}.split.tsv")
+        tsv_tmp=temp("data/watershed/{prefix}.{type}_tmp.tsv"),
+        tsv="data/watershed/{prefix}.{type}.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
-        # Split outlier scores to 1 line per sample, and combine (gene_id, sample_id) columns
-        cat {input.scores} | \
-        awk '{{if(NR==1){{split($0,a,FS)}}else{{for(i=2; i<NF; i++){{sub(/\.[0-9][0-9]*/, "", $1); print a[i] "_" $1 FS $i }} }} }}' | sort -k1 \
-        > {output.scores}
-        # Preserve header & add outlier type to last column
-        head -n 1 {input.tsv} | sed 's/$/ {wildcards.type}/' > {output.tsv}
-        # Combine first 2 columns to single column, join with outlier scores, and then re-split first 2 columns
-        tail -n +2 {input.tsv} | sed 's/\s/_/' | sort -k1 | join - {output.scores} | sed 's/_/ /' >> {output.tsv}
-        rm {output.scores}
+        # Join input file with outliers file
+        xsv join Sample,Gene {input.tsv} Sample,Gene {input.scores} -o {output.tsv_tmp}
+        # Remove duplicate columns used for matching
+        xsv select '!Gene[1],Sample[1]' {output.tsv_tmp} -o {output.tsv} 
         '''   
 
 # Label individuals with the same set of variants within each gene window.
-# TODO consider doing this with xsv
 rule label_pairs:
     input:
         "data/watershed/{prefix}.tsv",
     output:
         pairs=temp("data/watershed/{prefix}.pairs.tsv"),
-        pairlabel="data/watershed/{prefix}.pairlabel.tsv"
+        tsv_tmp=temp("data/watershed/{prefix}.pairlabel_tmp.tsv"),
+        tsv="data/watershed/{prefix}.pairlabel.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
-        # Get unique combinations of (gene, variant positions, alt alleles) & label those with N>=2
-        tail -n +2 {input} | sort -t' ' -k2 -k3 -k4 | \
-            cut -d' ' -f 1-4 | \
-            uniq -f1 -c | awk '$1 >= 2 ' | nl | \
-            awk '{{print $3 "_" $4 FS $1 FS $2}}' | \
-            sort -k1 \
-        > {output.pairs}
-        # Add pair labels to final column of Watershed tsv file, and remove (position, alt) columns
-        head -n 1 {input} | cut -d' ' -f1,2,5-  | sed 's/$/ Pair PairN/' > {output.pairlabel}
-        tail -n +2 {input} | sed 's/\s/_/' | \
-            sort -k1 | join -a1 - {output.pairs} | \
-            sed 's/_/ /' | cut -d' ' -f1,2,5-  \
-        >> {output.pairlabel}
-        rm {output.pairs}
+        # Get unique (gene,position,alt) combinations and label each
+        echo -e "Gene\\tPOS\\tALT\\tPair\\tPairN" > {output.pairs}
+        tail -n +2 {input} | \
+            cut -f 2-4 | sort | uniq -c -d | nl | \
+            awk '{{print $3 "\\t" $4 "\\t" $5 "\\t" $1 "\\t" $2}}' \
+            >> {output.pairs}
+
+        # Join pair labels with input file
+        xsv join --left Gene,POS,ALT {input} Gene,POS,ALT {output.pairs} -o {output.tsv_tmp}
+        # Remove duplicate columns used for matching, and delete POS & ALT fields 
+        xsv select '!Gene[1],POS[0],POS[1],ALT[0],ALT[1]' {output.tsv_tmp} -o {output.tsv} 
         ''' 
 
 # Encode categorical variables (represented in a single column as comma-separated strings) as binary vectors.
 rule encode_categorical:
     input: 
-       vcf="data/vcf/{prefix}.tsv",
+       vcf="data/watershed/{prefix}.tsv",
        cat="config/categorical"
-    output: "data/vcf/{prefix}.cat.vcf"
+    output: "data/watershed/{prefix}.cat.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
-        Rscript scripts/encode.cat.R {input.vcf} {input.cat} {output}
+        Rscript scripts/encode_cat.R {input.vcf} {input.cat} > {output}
         '''
+
+# Take norm of z-scores to make them comparable to p-values
+rule normalize_zscores:
+    input:
+       vcf="data/watershed/{prefix}.tsv",
+       zs="config/zscores"
+    output: "data/watershed/{prefix}.norm_zscores.tsv"
+    conda: "envs/watershed.yml"
+    shell:
+        '''
+        Rscript scripts/watershed_prep.R {input.vcf} {input.zs} > {output}
+        '''   
+
+
+rule watershed:
 
 
 
