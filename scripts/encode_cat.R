@@ -20,11 +20,11 @@ to_cat = function(df, col_name, drop_cols) {
     return(df2)
 }
 
-df=read.table(tsv, fill=TRUE, header=1)
+df=read.table(tsv, fill=TRUE, header=1,sep="\t")
 categ=read.table(config,row.names=1,header=1,fill=TRUE)
 for (col in row.names(categ)) {
   drop_cols = unlist(strsplit(categ[col,],","))
   df=to_cat(df,col,drop_cols)
 }
-write.table(df,"",quote=FALSE,row.names=FALSE)
+write.table(df,"",quote=FALSE,row.names=FALSE,na="",sep="\t")
 

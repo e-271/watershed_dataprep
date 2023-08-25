@@ -240,8 +240,20 @@ rule normalize_zscores:
     conda: "envs/watershed.yml"
     shell:
         '''
-        Rscript scripts/watershed_prep.R {input.vcf} {input.zs} > {output}
+        Rscript scripts/norm_zscores.R {input.vcf} {input.zs} > {output}
         '''   
+
+# Impute missing values
+rule impute_missing:
+    input:
+       vcf="data/watershed/{prefix}.tsv",
+       impute="config/impute"
+    output: "data/watershed/{prefix}.impute.tsv"
+    conda: "envs/watershed.yml"
+    shell:
+        '''
+        Rscript scripts/impute_missing.R {input.vcf} {input.impute} > {output}
+        '''
 
 
 rule watershed:
