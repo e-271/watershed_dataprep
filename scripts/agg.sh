@@ -10,13 +10,13 @@ alias unique="sort -u | tr '\n' ',' | sed 's/,$//'"
 alias append="tr '\n' ',' | sed 's/,$//'"
 
 alias split="sed 's/[,&]/\n/g'"
-alias clean_missing="sed 's/\.//g' | sed 's/NA//g'"
+alias clean_missing="sed 's/^\.$//g' | sed 's/^NA$//g'"
 
 format=$(cat $fields | awk -F, '{ORS=""; print "%" $1 "\t"}')
 format="[${format}\n]"
 
-header=$(cat $fields | awk -F, 'BEGIN{print "Sample\tGene"}{ORS=""; print $1 "\t"}')
-echo $header 
+header=$(cat $fields | awk -F, 'BEGIN{printf "Sample\tGene"}{ printf "\t" $1}')
+echo "$header"
 
 while IFS=' ' read -r gene chr start end; do 
     gene=$(echo $gene | sed 's/\.[0-9]*//') # remove .[0-9]* from gene ID to match VEP
