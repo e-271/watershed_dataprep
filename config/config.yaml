@@ -1,7 +1,8 @@
 
 af_reference: 30x.AFGR.filt.sample_af
-gencode: data/gencode/gencode.v27.annotation.chr-renamed.gtf 
-
+gencode: gencode.v27.annotation.chr-renamed
+aggregate: config/aggregate
 zscores: eOutlier
+num_outliers: "1"
 
 

@@ -20,7 +20,6 @@ echo "$header"
 
 while IFS=' ' read -r gene chr start end; do 
     gene=$(echo $gene | sed 's/\.[0-9]*//') # remove .[0-9]* from gene ID to match VEP
-    chr=$(echo $chr | sed 's/chr//') # remove chr to match our vcf (done in an earlier snakemake step)
     for vcf in $vcf_dir/*.vcf.gz; do
         inc="INFO/Gene=\"${gene}\"&&GT=\"alt\""
         id=$(basename $vcf .vcf.gz)

@@ -8,70 +8,11 @@ ln -s $VEP_HIDDEN .vep
 """
 
 
-# TODO add conda envs
 # TODO make a "rule all" and generalize other rule naming schemes
-# TODO add all non-VCF inputs to config
+# TODO add all non-VCF inputs to config (CADD, LOFTEE path, Gencode, paths to configuration files)
 
 configfile: "config/config.yaml"
 
-
-# Split outlier scores to 1 line per sample, and remove .[0-9]* in Ensemble identifiers
-rule format_outliers:
-    input:
-        "data/outliers/{prefix}_{type}.tsv"
-    output:
-        "data/outliers/{prefix}_{type}.split.tsv"
-    conda: "envs/watershed.yml"
-    shell:
-        '''
-        sh scripts/flatten.sh {input} {wildcards.type} > {output}
-        '''
-
-# Filter VCF to VQSR "PASS"
-rule filter:
-    input: "data/vcf/{prefix}.vcf.gz"
-    output: "data/vcf/{prefix}.filt.vcf.gz"
-    conda: "envs/watershed.yml"
-    shell:
-       '''
-       bcftools view -f PASS {input} -o {output}
-       tabix {output}
-       '''
-
-# Update AF field in VCF using AC / AN
-rule update_afs:
-    input: "data/vcf/{prefix}.filt.vcf.gz"
-    output: "data/vcf/{prefix}.filt.sample_af.vcf.gz"
-    conda: "envs/watershed.yml"
-    shell:
-        '''
-        bcftools +fill-tags {input} -o {output} -- -t AF
-        tabix {output}
-        '''
-
-# Update population AF using a reference AF
-rule update_pop_afs:
-    input:
-       vcf="data/vcf/{prefix}.filt.vcf.gz",
-       ref=expand("data/vcf/{reference}.vcf.gz", reference=config["af_reference"])
-    output: "data/vcf/{prefix}.filt.ref_af.vcf.gz"
-    conda: "envs/watershed.yml"
-    shell:
-        '''
-        bcftools annotate -a {input.ref} -c INFO/AF {input.vcf} -o {output}
-        tabix {output}
-        '''
-
-# Filter positions by MAF<0.01, AC>0. Also splits multi-allelic positions into biallelic records.
-rule filter_rare:
-    input: "data/vcf/{prefix}.filt.ref_af.vcf.gz" 
-    output: "data/vcf/{prefix}.filt.ref_af.rare.vcf.gz" 
-    conda: "envs/watershed.yml"
-    shell:
-        '''
-        bcftools norm -m -any {input} |  bcftools view --exclude "AF>0.01 | AC=0" -o {output}
-        tabix {output}
-        '''
 
 # Annotate samples with CADD
 # TODO may not be handling deletions properly due to differences in format between vcf and cadd
@@ -147,11 +88,12 @@ rule combine_annotations:
         tabix {output}
         '''
 
+# Split multi-sample VCF into a directory of single-sample VCFs
 rule split_samples:
     input:
         "data/vcf/{prefix}.filt.ref_af.rare.CADD.VEP_split.vcf.gz"
     output:
-        directory("data/vcf/{prefix}.filt.ref_af.rare.CADD.VEP_split.id_split") # Is a directory of <id>.vcf
+        directory("data/vcf/{prefix}.filt.ref_af.rare.CADD.VEP_split.id_split")
     conda: "envs/watershed.yml"
     shell:
         '''
@@ -162,20 +104,46 @@ rule split_samples:
         done
         '''
 
-# input.gencode contains 4 columns: gene_id, chr, pos_start, pos_end
-# input.fields contains vcf INFO fields to include in Watershed annotations (one per line)
-# TODO add gencode file to config 
+# Filter & reformat gencode GTF file.
+rule gencode:
+    input:
+        expand("data/gencode/{prefix}.gtf", prefix=config["gencode"])
+    output:
+        genes="data/gencode/{prefix}.genes.bed",
+        tsv="data/gencode/{prefix}.gene_pos.protein_coding.lincRNA.tsv"
+    conda: "envs/watershed.yml"
+    shell:
+        '''
+        # Generate gene position bedfile 
+        gtftools -g {output.genes} {input}
+        # Filter & convert to (name, chr, start, end) tsv
+        cat {output.genes} | awk '{{if($7 == "lincRNA" || $7 == "protein_coding") {{print $5 FS $1 FS $2 FS $3}} }}' > {output.tsv}
+        '''
+
+# Aggregate each individual's rare variants over each gene.
 rule aggregate:
     input:
         vcf=directory("data/vcf/{prefix}.filt.ref_af.rare.CADD.VEP_split.id_split"),
-        gencode="data/gencode/gencode.v43.gene_pos.protein_lincRNA.tsv",
-        fields="config/aggregate"
+        gencode=expand("data/gencode/{gencode}.gene_pos.protein_coding.lincRNA.tsv", gencode=config["gencode"]), 
+        aggregate=config["aggregate"]
     output: 
         "data/watershed/{prefix}.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
-        sh scripts/agg.sh {input.vcf} {input.fields} {input.gencode} > {output}
+        sh scripts/agg.sh {input.vcf} {input.aggregate} {input.gencode} > {output}
+        '''
+
+# Split outlier scores to 1 line per sample, and remove .[0-9]* in Ensemble identifiers
+rule format_outliers:
+    input:
+        "data/outliers/{prefix}_{type}.tsv"
+    output:
+        "data/outliers/{prefix}_{type}.split.tsv"
+    conda: "envs/watershed.yml"
+    shell:
+        '''
+        sh scripts/flatten.sh {input} {wildcards.type} > {output}
         '''
 
 # Outlier scores are stored in an array of (gene) x (sample id).
@@ -222,41 +190,47 @@ rule label_pairs:
 # Encode categorical variables (represented in a single column as comma-separated strings) as binary vectors.
 rule encode_categorical:
     input: 
-       vcf="data/watershed/{prefix}.tsv",
+       tsv="data/watershed/{prefix}.pairlabel.tsv",
        cat="config/categorical"
-    output: "data/watershed/{prefix}.cat.tsv"
+    output: "data/watershed/{prefix}.pairlabel.cat.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
-        Rscript scripts/encode_cat.R {input.vcf} {input.cat} > {output}
+        Rscript scripts/encode_cat.R {input.tsv} {input.cat} > {output}
         '''
 
 # Take norm of z-scores to make them comparable to p-values
 rule normalize_zscores:
-    input:
-       vcf="data/watershed/{prefix}.tsv",
-       zs="config/zscores"
-    output: "data/watershed/{prefix}.norm_zscores.tsv"
+    input: "data/watershed/{prefix}.pairlabel.cat.tsv",
+    output: "data/watershed/{prefix}.pairlabel.cat.normz.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
-        Rscript scripts/norm_zscores.R {input.vcf} {input.zs} > {output}
+        Rscript scripts/norm_zscores.R {input} {config[zscores]} > {output}
         '''   
 
 # Impute missing values
 rule impute_missing:
     input:
-       vcf="data/watershed/{prefix}.tsv",
+       vcf="data/watershed/{prefix}.pairlabel.cat.normz.tsv",
        impute="config/impute"
-    output: "data/watershed/{prefix}.impute.tsv"
+    output: "data/watershed/{prefix}.pairlabel.cat.normz.impute.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
         Rscript scripts/impute_missing.R {input.vcf} {input.impute} > {output}
         '''
 
-
+# Run Watershed
 rule watershed:
+    input: "data/watershed/{prefix}.pairlabel.cat.normz.impute.tsv",
+    output: "data/watershed/{prefix}.pairlabel.cat.normz.impute_results"
+    conda: "envs/watershed.yml"
+    shell:
+        '''
+        Rscript scripts/watershed.R {input} {config[num_outliers]} > {output}
+        '''
+
 
 
 
