@@ -1,13 +1,22 @@
 # watershed
 Data preprocessing pipeline for [WatershedR](https://github.com/nicolerg/WatershedR).
 
+# Usage
+
+`snakemake data/watershed/${PREFIX}.eOutliers.pairlabel.cat.normz.impute_results`
+
+# Workflow
+
+![DAG](docs/dag.svg?raw=true)
+
+
 ## TODOs
 
 High priority:
 - [x] Convert z-scores to p-scores
 - [x] Impute null values
 - [ ] Prepare test set (delete extra individuals for N>2 pairs)
-- [ ] Update script to run Watershed 
+- [x] Update script to run Watershed 
 - [x] Convert categorical variables to binary vector
 - [x] Add eOutlier scores
 - [x] Add pair labels
