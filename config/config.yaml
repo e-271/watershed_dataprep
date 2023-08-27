@@ -1,7 +1,22 @@
 
-af_reference: 30x.AFGR.filt.sample_af
-gencode: gencode.v27.annotation.chr-renamed
+# Config for CADD annotation input files
+cadd_cols: config/cadd_columns
+cadd: data/cadd/whole_genome_SNVs_inclAnno.tsv.gz
+cadd_indels: data/cadd/gnomad.genomes.r3.0.indel_inclAnno.tsv.gz
+
+# Config for VEP annotation input files
+human_ancestor: data/vep/hg38/human_ancestor.fa.gz
+gerp_bigwig: data/vep/hg38/gerp_conservation_scores.homo_sapiens.GRCh38.bw
+conservation_file: data/vep/hg38/loftee.sql
+loftee_path: .vep/Plugins
+
+# Config for gencode & aggregation
+gencode: data/gencode/gencode.v27.annotation.chr-renamed.gtf
 aggregate: config/aggregate
+
+# Config for Watershed
+categorical: config/categorical
+impute: config/impute
 zscores: eOutlier
 num_outliers: "1"
 

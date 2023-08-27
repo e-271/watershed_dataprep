@@ -14,15 +14,26 @@ ln -s $VEP_HIDDEN .vep
 configfile: "config/config.yaml"
 
 
+# Filter positions by MAF<0.01, AC>0. Also splits multi-allelic positions into biallelic records.
+rule filter_rare:
+    input: "data/vcf/{prefix}.vcf.gz"
+    output: "data/vcf/{prefix}.rare.vcf.gz"
+    conda: "envs/watershed.yml"
+    shell:
+        '''
+        bcftools norm -m -any {input} |  bcftools view --exclude "AF>0.01 | AC=0" -o {output}
+        tabix {output}
+        '''
+
 # Annotate samples with CADD
 # TODO may not be handling deletions properly due to differences in format between vcf and cadd
 rule cadd:
     input:
-        vcf="data/vcf/{prefix}.filt.ref_af.rare.vcf.gz",
-        cadd_cols="config/cadd_columns",
-        cadd="data/cadd/whole_genome_SNVs_inclAnno.tsv.gz",
-        cadd_indel="data/cadd/gnomad.genomes.r3.0.indel_inclAnno.tsv.gz"
-    output: "data/vcf/{prefix}.filt.ref_af.rare.CADD.vcf.gz"
+        vcf="data/vcf/{prefix}.rare.vcf.gz",
+        cadd_cols=config["cadd_cols"],
+        cadd=config["cadd"],
+        cadd_indel=config["cadd_indels"]
+    output: "data/vcf/{prefix}.rare.CADD.vcf.gz"
     conda: "envs/watershed.yml"
     shell:
        '''
@@ -35,11 +46,14 @@ rule cadd:
 # TODO VEP --distance=5000 by default for annotating upstream/downstream effects, we want this to be 10k presumably?
 rule vep:
     input:
-        vcf="data/vcf/{prefix}.filt.ref_af.rare.vcf.gz",
-        loftee_path=".vep/Plugins"
+        vcf="data/vcf/{prefix}.rare.vcf.gz",
+        human_ancestor=config["human_ancestor"],
+        gerp_bigwig=config["gerp_bigwig"],
+        conservation_file=config["conservation_file"],
+        loftee_path=config["loftee_path"],
     output: 
-        vep="data/vcf/{prefix}.filt.ref_af.rare.VEP.vcf",
-        vepgz="data/vcf/{prefix}.filt.ref_af.rare.VEP.vcf.gz",
+        vep="data/vcf/{prefix}.rare.VEP.vcf",
+        vepgz="data/vcf/{prefix}.rare.VEP.vcf.gz",
     conda: "envs/vep.yml"
     shell:
         '''
@@ -53,18 +67,18 @@ rule vep:
 --offline \
 --dir_cache data/vep \
 --plugin LoF,\
-human_ancestor_fa:data/vep/hg38/human_ancestor.fa.gz,\
+human_ancestor_fa:{input.human_ancestor},\
 loftee_path:{input.loftee_path},\
-conservation_file:data/vep/hg38/loftee.sql,\
-gerp_bigwig:data/vep/hg38/gerp_conservation_scores.homo_sapiens.GRCh38.bw
+conservation_file:{input.conservation_file},\
+gerp_bigwig:{input.gerp_bigwig}
         bgzip --keep {output.vep}
         tabix {output.vepgz}
         '''
 
 # Split all VEP annotations into INFO/* fields
 rule split_vep:
-    input: "data/vcf/{prefix}.filt.ref_af.rare.VEP.vcf.gz"
-    output: "data/vcf/{prefix}.filt.ref_af.rare.VEP_split.vcf.gz"
+    input: "data/vcf/{prefix}.rare.VEP.vcf.gz"
+    output: "data/vcf/{prefix}.rare.VEP_split.vcf.gz"
     conda: "envs/watershed.yml"
     shell:
         '''
@@ -77,10 +91,10 @@ rule split_vep:
 # Can run VEP and CADD simultaneously & combine them afterwards to save time.
 rule combine_annotations:
     input:
-        vcf1="data/vcf/{prefix}.filt.ref_af.rare.CADD.vcf.gz",
-        vcf2="data/vcf/{prefix}.filt.ref_af.rare.VEP_split.vcf.gz",
+        vcf1="data/vcf/{prefix}.rare.CADD.vcf.gz",
+        vcf2="data/vcf/{prefix}.rare.VEP_split.vcf.gz",
     output:
-        "data/vcf/{prefix}.filt.ref_af.rare.CADD.VEP_split.vcf.gz",
+        "data/vcf/{prefix}.rare.CADD.VEP_split.vcf.gz",
     conda: "envs/watershed.yml"
     shell:
         '''
@@ -91,9 +105,9 @@ rule combine_annotations:
 # Split multi-sample VCF into a directory of single-sample VCFs
 rule split_samples:
     input:
-        "data/vcf/{prefix}.filt.ref_af.rare.CADD.VEP_split.vcf.gz"
+        "data/vcf/{prefix}.rare.CADD.VEP_split.vcf.gz"
     output:
-        directory("data/vcf/{prefix}.filt.ref_af.rare.CADD.VEP_split.id_split")
+        directory("data/vcf/{prefix}.rare.CADD.VEP_split.id_split")
     conda: "envs/watershed.yml"
     shell:
         '''
@@ -107,7 +121,7 @@ rule split_samples:
 # Filter & reformat gencode GTF file.
 rule gencode:
     input:
-        expand("data/gencode/{prefix}.gtf", prefix=config["gencode"])
+        config["gencode"]
     output:
         genes="data/gencode/{prefix}.genes.bed",
         tsv="data/gencode/{prefix}.gene_pos.protein_coding.lincRNA.tsv"
@@ -123,7 +137,7 @@ rule gencode:
 # Aggregate each individual's rare variants over each gene.
 rule aggregate:
     input:
-        vcf=directory("data/vcf/{prefix}.filt.ref_af.rare.CADD.VEP_split.id_split"),
+        vcf=directory("data/vcf/{prefix}.rare.CADD.VEP_split.id_split"),
         gencode=expand("data/gencode/{gencode}.gene_pos.protein_coding.lincRNA.tsv", gencode=config["gencode"]), 
         aggregate=config["aggregate"]
     output: 
@@ -192,7 +206,7 @@ rule label_pairs:
 rule encode_categorical:
     input: 
        tsv="data/watershed/{prefix}.pairlabel.tsv",
-       cat="config/categorical"
+       cat=config["categorical"]
     output: "data/watershed/{prefix}.pairlabel.cat.tsv"
     conda: "envs/watershed.yml"
     shell:
@@ -202,7 +216,7 @@ rule encode_categorical:
 
 # Take norm of z-scores to make them comparable to p-values
 rule normalize_zscores:
-    input: "data/watershed/{prefix}.pairlabel.cat.tsv",
+    input: "data/watershed/{prefix}.pairlabel.cat.tsv"
     output: "data/watershed/{prefix}.pairlabel.cat.normz.tsv"
     conda: "envs/watershed.yml"
     shell:
@@ -213,18 +227,18 @@ rule normalize_zscores:
 # Impute missing values
 rule impute_missing:
     input:
-       vcf="data/watershed/{prefix}.pairlabel.cat.normz.tsv",
-       impute="config/impute"
+       tsv="data/watershed/{prefix}.pairlabel.cat.normz.tsv",
+       impute=config["impute"]
     output: "data/watershed/{prefix}.pairlabel.cat.normz.impute.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
-        Rscript scripts/impute_missing.R {input.vcf} {input.impute} > {output}
+        Rscript scripts/impute_missing.R {input.tsv} {input.impute} > {output}
         '''
 
 # Run Watershed
 rule watershed:
-    input: "data/watershed/{prefix}.pairlabel.cat.normz.impute.tsv",
+    input: "data/watershed/{prefix}.pairlabel.cat.normz.impute.tsv"
     output: "data/watershed/{prefix}.pairlabel.cat.normz.impute_results"
     conda: "envs/watershed.yml"
     shell:
