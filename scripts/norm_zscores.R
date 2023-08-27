@@ -8,7 +8,7 @@ df=read.table(tsv, fill=TRUE, header=1)
 
 # Replace z-scores with norm (so they are comparable to p-values)
 for (zs in zscores) {
-  df$zs = dnorm(df$zs)
+  df[,zs] = dnorm(df[,zs])
 }
 
 write.table(df,"",quote=FALSE,row.names=FALSE)
