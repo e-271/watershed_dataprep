@@ -129,9 +129,10 @@ rule aggregate:
     output: 
         "data/watershed/{prefix}.tsv"
     conda: "envs/watershed.yml"
+    threads: 32
     shell:
         '''
-        sh scripts/agg.sh {input.vcf} {input.aggregate} {input.gencode} > {output}
+        sh scripts/agg.sh {input.vcf} {input.aggregate} {input.gencode} {threads} > {output}
         '''
 
 # Split outlier scores to 1 line per sample, and remove .[0-9]* in Ensemble identifiers
