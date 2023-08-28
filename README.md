@@ -2,15 +2,14 @@
 Data preprocessing pipeline for [WatershedR](https://github.com/nicolerg/WatershedR).
 
 ## Set up CADD
-Download CADD files to match your genome build, and place in the folder `data/cadd`. 
+1. Download CADD files to match your genome build, and place in the folder `data/cadd`.
 
-CADD (HG38):
-- SNVs
-  - [tsv.gz](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz) (313GB)
-  - [tbi](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz.tbi)
-- Indels
-  - [tsv.gz](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz) (7.6GB)
-  - [tbi](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz.tbi)
+    - SNVs (HG38):
+      - [tsv.gz](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz) (313GB)
+      - [tbi](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz.tbi)
+    - Indels (HG38):
+      - [tsv.gz](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz) (7.6GB)
+      - [tbi](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz.tbi)
 
 If you use a different genome build or location for CADD, update the  `cadd` and `cadd_indel` fields in `config/config.yaml`. You can also configure the annotation columns and aggregation functions for CADD by editing the `config/cadd_columns` file.
 
