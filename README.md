@@ -1,14 +1,14 @@
 # watershed
 Data preprocessing pipeline for [WatershedR](https://github.com/nicolerg/WatershedR).
 
-## Set up CADD
+## Download CADD files
 1. Download CADD files to match your genome build, and place in the folder `data/cadd`.
 
     - SNVs (HG38):
-      - [tsv.gz](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz) (313GB)
+      - [tsv.gz](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz) (313G)
       - [tbi](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz.tbi)
     - Indels (HG38):
-      - [tsv.gz](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz) (7.6GB)
+      - [tsv.gz](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz) (7.6G)
       - [tbi](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz.tbi)
 
 If you use a different genome build or filepath for CADD, update `config/config.yaml`.
@@ -20,8 +20,8 @@ If you use a different genome build or filepath for CADD, update `config/config.
     `conda env create --name vep -c bioconda ensembl-vep=$ENSEMBL_VERSION`
 
 2. Download cache files for VEP annotation and place in the folder `data/vep`. Run `tar xzf` to unzip this after downloading:
-    - [Ensembl 110 / GRCh38](https://ftp.ensembl.org/pub/release-110/variation/indexed_vep_cache/homo_sapiens_vep_110_GRCh38.tar.gz) (13GB)
-    - [Ensembl 110 / GRCh37](https://ftp.ensembl.org/pub/release-110/variation/indexed_vep_cache/#:~:text=homo_sapiens_vep_110_GRCh37.tar.gz) (20GB)
+    - [Ensembl 110 / GRCh38](https://ftp.ensembl.org/pub/release-110/variation/indexed_vep_cache/homo_sapiens_vep_110_GRCh38.tar.gz) (13G)
+    - [Ensembl 110 / GRCh37](https://ftp.ensembl.org/pub/release-110/variation/indexed_vep_cache/#:~:text=homo_sapiens_vep_110_GRCh37.tar.gz) (20G)
     - Other versions can to be located within [https://ftp.ensembl.org/pub](https://ftp.ensembl.org/pub) or can be installed using VEP's `install.PL` script.
 
 For full VEP installation instructions see the [VEP documentation](http://useast.ensembl.org/info/docs/tools/vep/script/vep_download.html).
@@ -36,15 +36,23 @@ If you use a different genome build, Ensembl version or filepath for VEP, update
 
 2. Download Loftee files to `data/vep`:
     - GERP (GRCh38):
-      - [bw](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/gerp_conservation_scores.homo_sapiens.GRCh38.bw)
+      - [bw](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/gerp_conservation_scores.homo_sapiens.GRCh38.bw) (12G)
     - Human ancestor (GRCh38):
-      - [fa.gz](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/human_ancestor.fa.gz)
+      - [fa.gz](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/human_ancestor.fa.gz) (844M)
       - [fai](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/human_ancestor.fa.gz.fai)
       - [gzi](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/human_ancestor.fa.gz.gzi)
     - PhyloCSV (GRCh38):
-      - [sql.gz](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/loftee.sql.gz) (unzip after downloading)
+      - [sql.gz](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/loftee.sql.gz) (29M) unzip after downloading
 
 If you use a different genome build or filepath for Loftee, update `config/config.yaml`.
+
+## Download Gencode file
+
+1. Download the GTF file corresponding to your build, unzip it, and and place in `data/gencode`:
+    - [Gencode v44 / GRCh38](https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_44/gencode.v44.annotation.gtf.gz) (47M)
+    - [Gencode v43 / GRCh37](https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_43/GRCh37_mapping/gencode.v43lift37.annotation.gtf.gz) (62M)
+
+Update the gencode version in `config/config.yaml`.
 
 ## Run the pipeline
 
