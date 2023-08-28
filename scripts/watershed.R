@@ -16,7 +16,7 @@ model_name = "Watershed_approximate"
 
 ws = evaluate_watershed(input_file = input,
                    model_name = model_name,
-                   number_of_dimensions = num_outliers,
+                   number_of_dimensions = as.numeric(num_outliers),
                    output_prefix = output
                    )
 

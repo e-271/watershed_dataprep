@@ -11,13 +11,15 @@ conservation_file: data/vep/hg38/loftee.sql
 loftee_path: .vep/Plugins
 
 # Config for gencode & aggregation
-gencode: data/gencode/gencode.v27.annotation.chr-renamed.gtf
+gencode: gencode.v27.annotation.chr-renamed
 aggregate: config/aggregate
 
 # Config for Watershed
 categorical: config/categorical
 impute: config/impute
 zscores: eOutliers
+drop: config/drop
+rename: config/rename
 num_outliers: "1"
 
 

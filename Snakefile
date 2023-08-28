@@ -68,7 +68,7 @@ rule vep:
 --dir_cache data/vep \
 --plugin LoF,\
 human_ancestor_fa:{input.human_ancestor},\
-loftee_path:{input.loftee_path},\
+loftee_pat/:{input.loftee_path},\
 conservation_file:{input.conservation_file},\
 gerp_bigwig:{input.gerp_bigwig}
         bgzip --keep {output.vep}
@@ -121,7 +121,7 @@ rule split_samples:
 # Filter & reformat gencode GTF file.
 rule gencode:
     input:
-        config["gencode"]
+        expand("data/gencode/{prefix}.gtf", prefix=config["gencode"])
     output:
         genes="data/gencode/{prefix}.genes.bed",
         tsv="data/gencode/{prefix}.gene_pos.protein_coding.lincRNA.tsv"
@@ -233,13 +233,37 @@ rule impute_missing:
     conda: "envs/watershed.yml"
     shell:
         '''
-        Rscript scripts/impute_missing.R {input.tsv} {input.impute} > {output}
+        Rscript scripts/impute_missing.R {input.tsv} {input.impute} {config[num_outliers]} > {output}
+        '''
+
+# Drop and rename columns for Watershed
+rule format:
+    input:
+       tsv="data/watershed/{prefix}.pairlabel.cat.normz.impute.tsv",
+       drop=config["drop"],
+       rename=config["rename"]
+    output: 
+        tsv_tmp=temp("data/watershed/{prefix}.pairlabel.cat.normz.impute.format_tmp.tsv"),
+        tsv="data/watershed/{prefix}.pairlabel.cat.normz.impute.format.tsv"
+    conda: "envs/watershed.yml"
+    shell:
+        '''
+        # drop columns
+        drop='!'
+        while read drop_col; do drop="${{drop}}${{drop_col}}[0],"; done < {input.drop}
+        xsv select $drop {input.tsv} -o {output.tsv_tmp}
+ 
+        # rename
+        head -n 1 {output.tsv_tmp} | \
+            awk '{{if(NR==FNR){{ a[$1]=$2 }} else{{ for(i=1;i<=NF;i++) {{ $i=a[$i]?a[$i]:$i }} print $0 }}}}' \
+            FS=',' {input.rename} FS='\\t' - > {output.tsv}
+        tail -n +2 {output.tsv_tmp} >> {output.tsv}
         '''
 
 # Run Watershed
 rule watershed:
-    input: "data/watershed/{prefix}.pairlabel.cat.normz.impute.tsv"
-    output: "data/watershed/{prefix}.pairlabel.cat.normz.impute_results"
+    input: "data/watershed/{prefix}.pairlabel.cat.normz.impute.format.tsv"
+    output: "data/watershed/{prefix}.pairlabel.cat.normz.impute.format_results"
     conda: "envs/watershed.yml"
     shell:
         '''
