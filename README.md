@@ -11,7 +11,7 @@ Data preprocessing pipeline for [WatershedR](https://github.com/nicolerg/Watersh
       - [tsv.gz](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz) (7.6GB)
       - [tbi](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz.tbi)
 
-If you use a different genome build or location for CADD, update the  `cadd` and `cadd_indel` fields in `config/config.yaml`. You can also configure the annotation columns and aggregation functions for CADD by editing the `config/cadd_columns` file.
+If you use a different genome build or filepath for CADD, update `config/config.yaml`.
 
 ## Set up VEP
 
@@ -25,6 +25,8 @@ If you use a different genome build or location for CADD, update the  `cadd` and
     - Other versions can to be located within [https://ftp.ensembl.org/pub](https://ftp.ensembl.org/pub) or can be installed using VEP's `install.PL` script.
 
 For full VEP installation instructions see the [VEP documentation](http://useast.ensembl.org/info/docs/tools/vep/script/vep_download.html).
+
+If you use a different genome build, Ensembl version or filepath for VEP, update `config/config.yaml`.
 
 ## Set up Loftee
 
@@ -41,6 +43,8 @@ For full VEP installation instructions see the [VEP documentation](http://useast
       - [gzi](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/human_ancestor.fa.gz.gzi)
     - PhyloCSV (GRCh38):
       - [sql.gz](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/loftee.sql.gz) (unzip after downloading)
+
+If you use a different genome build or filepath for Loftee, update `config/config.yaml`.
 
 ## Run the pipeline
 
