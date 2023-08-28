@@ -9,7 +9,7 @@ config=args[2]
 to_cat = function(df, col_name, drop_cols) {
     cons=strsplit(df[,col_name], ',')
     f=unique(unlist(cons))
-    f=f[!is.na(f)]
+    f=f[!is.na(f) & !("" == f)]
     if (length(drop_cols)) {
         f=f[!(f %in% drop_cols)]
     }
@@ -20,7 +20,7 @@ to_cat = function(df, col_name, drop_cols) {
     return(df2)
 }
 
-df=read.table(tsv, fill=TRUE, header=1,sep="\t")
+df=read.table(tsv, fill=TRUE, header=1,sep="\t",na=c("", "NA"))
 categ=read.table(config,row.names=1,header=1,fill=TRUE)
 for (col in row.names(categ)) {
   drop_cols = unlist(strsplit(categ[col,],","))
