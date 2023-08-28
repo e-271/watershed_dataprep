@@ -16,71 +16,62 @@ If you use a different genome build or location for CADD, update the  `cadd` and
 
 ## Set up VEP
 
-Create a VEP conda environment. Make sure the match the VEP version to your Ensembl version:
+1. Create a VEP conda environment. Make sure the match the VEP version to your Ensembl version:
 
-`conda env create --name vep -c bioconda ensembl-vep=$ENSEMBL_VERSION`
+    `conda env create --name vep -c bioconda ensembl-vep=$ENSEMBL_VERSION`
 
-Download cache files for VEP annotation and place in the folder `data/vep`. Run `tar xzf` to unzip this after downloading:
-- [Ensembl 110 / GRCh38](https://ftp.ensembl.org/pub/release-110/variation/indexed_vep_cache/homo_sapiens_vep_110_GRCh38.tar.gz) (13GB)
-- [Ensembl 110 / GRCh37](https://ftp.ensembl.org/pub/release-110/variation/indexed_vep_cache/#:~:text=homo_sapiens_vep_110_GRCh37.tar.gz) (20GB)
-- Other versions can to be located within [https://ftp.ensembl.org/pub](https://ftp.ensembl.org/pub) or can be installed using VEP's `install.PL` script.
+2. Download cache files for VEP annotation and place in the folder `data/vep`. Run `tar xzf` to unzip this after downloading:
+    - [Ensembl 110 / GRCh38](https://ftp.ensembl.org/pub/release-110/variation/indexed_vep_cache/homo_sapiens_vep_110_GRCh38.tar.gz) (13GB)
+    - [Ensembl 110 / GRCh37](https://ftp.ensembl.org/pub/release-110/variation/indexed_vep_cache/#:~:text=homo_sapiens_vep_110_GRCh37.tar.gz) (20GB)
+    - Other versions can to be located within [https://ftp.ensembl.org/pub](https://ftp.ensembl.org/pub) or can be installed using VEP's `install.PL` script.
 
 For full VEP installation instructions see the [VEP documentation](http://useast.ensembl.org/info/docs/tools/vep/script/vep_download.html).
 
 ## Set up Loftee
 
-Install the [Loftee](https://github.com/konradjk/loftee) plugin for VEP in the folder `.vep/Plugins`:
-- GRCh38: `git clone https://github.com/konradjk/loftee --branch grch38 .vep/Plugins`
-- GRCh37: `git clone https://github.com/konradjk/loftee .vep/Plugins`
+1. Install the [Loftee](https://github.com/konradjk/loftee) plugin for VEP in the folder `.vep/Plugins`:
+    - GRCh38: `git clone https://github.com/konradjk/loftee --branch grch38 .vep/Plugins`
+    - GRCh37: `git clone https://github.com/konradjk/loftee .vep/Plugins`
 
-Download Loftee files to `data/vep`:
-- GERP (GRCh38):
-  - [bw](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/gerp_conservation_scores.homo_sapiens.GRCh38.bw)
-- Human ancestor (GRCh38):
-  - [fa.gz](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/human_ancestor.fa.gz)
-  - [fai](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/human_ancestor.fa.gz.fai)
-  - [gzi](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/human_ancestor.fa.gz.gzi)
-- PhyloCSV (GRCh38):
-  - [sql.gz](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/loftee.sql.gz) (unzip after downloading)
+2. Download Loftee files to `data/vep`:
+    - GERP (GRCh38):
+      - [bw](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/gerp_conservation_scores.homo_sapiens.GRCh38.bw)
+    - Human ancestor (GRCh38):
+      - [fa.gz](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/human_ancestor.fa.gz)
+      - [fai](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/human_ancestor.fa.gz.fai)
+      - [gzi](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/human_ancestor.fa.gz.gzi)
+    - PhyloCSV (GRCh38):
+      - [sql.gz](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/loftee.sql.gz) (unzip after downloading)
 
 ## Run the pipeline
 
 Example inputs can be found in `data/vcf/EXAMPLE.vcf.gz` and `data/outliers/EXAMPLE_eOutliers.tsv`.
+1. Install Watershed conda environment:
 
-Install Watershed conda environment:
+    `conda install --file envs/watershed.yml`
 
-`conda install --file envs/watershed.yml`
+2. Run the pipeline (including CADD & VEP annotation, data preparation, & Watershed training):
 
-Run the full pipeline (including CADD & VEP annotation, data preparation, & Watershed training)
-
-`snakemake --cores $N data/watershed/EXAMPLE.eOutliers.pairlabel.cat.normz.impute.format_results`
+    `snakemake --cores $N data/watershed/EXAMPLE.eOutliers.pairlabel.cat.normz.impute.format_results`
 
 The full SnakeMake workflow is shown below:
-
-### Pipeline workflow
 
 ![DAG](docs/dag.svg?raw=true)
 
 ## Notes on configuration
-
-`config/cadd_columns` defines which CADD annotations to use, as well as the aggregation function for variants returning multiple CADD annotations (e.g. those with multiple variant categories). Available aggregation functions are `max`, `unique`, `min`, `append`.
-
-`config/categorical` defines VEP and CADD annotations which need to be converted to categorical variables.
-
-`config/aggregate` defines the aggregation functions over each gene region. Available aggregation functions are `max`, `unique`, `min`, `append`.
-
-`config/impute` defines the imputation values used to fill any missing annotations.
+- `config/config.yaml` defines filepaths for annotation files and other general settings for the Snakemake pipeline.
+- `config/cadd_columns` defines which CADD annotations to use, as well as the aggregation function for variants returning multiple CADD annotations (e.g. those with multiple variant categories). Available aggregation functions are `max`, `unique`, `min`, `append`.
+- `config/categorical` defines VEP and CADD annotations which need to be converted to categorical variables.
+- `config/aggregate` defines the aggregation functions over each gene region. Available aggregation functions are `max`, `unique`, `min`, `append`.
+- `config/impute` defines the imputation values used to fill any missing annotations.
 
 
 ## Notes on speed
 
-The `VEP`, `CADD`, and `aggregate` steps can take 24+ hours on a dataset with ~10M rare variants. 
-
-The `aggregate` step can be highly parallelized.
-
-Watershed training only takes a few minutes.
-
-VEP with the Loftee plugin does not support multi-threading, as their SQL queries are not thread-safe.
+- The `VEP`, `CADD`, and `aggregate` steps can take 24+ hours on a dataset with ~10M rare variants. 
+- The `aggregate` step can be highly parallelized.
+- Watershed training only takes a few minutes.
+- VEP with the Loftee plugin does not support multi-threading, as their SQL queries are not thread-safe.
 
 # TODOs
 
