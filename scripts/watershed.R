@@ -8,9 +8,8 @@ output = args[3]
 
 if (num_outliers==1) {
 model_name = "RIVER"
-} 
+} else {
 # TODO when to use exact? depends on # dimenions I think?
-else {
 model_name = "Watershed_approximate"
 }
 

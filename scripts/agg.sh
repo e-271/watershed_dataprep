@@ -38,6 +38,7 @@ query () {
 export -f query
 export format fields
 
+# TODO it may be much faster not to split by ID, to reduce the number of queries
 while IFS=' ' read -r gene chr start end; do 
     gene=$(echo $gene | sed 's/\.[0-9]*//') # remove .[0-9]* from gene ID to match VEP
     # Sequential
@@ -46,6 +47,5 @@ while IFS=' ' read -r gene chr start end; do
     #done
     # Parallel
     ls $vcf_dir/*.vcf.gz | xargs -P $proc -n 1 sh -c "query \"\$1\" $gene $chr $start $end" {}
-    #ls data/vcf/30x.GWD.filt.ref_af.rare.CADD.VEP_split.id_split/HG02634.vcf.gz | xargs -P $proc -n 1 sh -c "query \"\$1\" $gene $chr $start $end" {}
 done < $gencode
 

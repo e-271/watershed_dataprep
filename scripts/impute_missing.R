@@ -16,4 +16,3 @@ for (col in row.names(impute)[1:2]) {
 }
 
 write.table(df,"",quote=FALSE,row.names=FALSE, na="", sep="\t")
-
