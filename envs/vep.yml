@@ -16,4 +16,4 @@ dependencies:
   - libxml2
   - libdb
   - snakemake
-prefix: /home/erobb/miniconda3/envs/vep
+
