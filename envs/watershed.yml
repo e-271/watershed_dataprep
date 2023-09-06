@@ -7,7 +7,6 @@ dependencies:
   - snakemake
   - htslib
   - bcftools
-  - vcfanno
   - r-devtools
   - xsv
   - gtftools
