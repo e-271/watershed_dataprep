@@ -214,22 +214,12 @@ rule encode_categorical:
         Rscript scripts/encode_cat.R {input.tsv} {input.cat} > {output}
         '''
 
-# Take norm of z-scores to make them comparable to p-values
-rule normalize_zscores:
-    input: "data/watershed/{prefix}.pairlabel.cat.tsv"
-    output: "data/watershed/{prefix}.pairlabel.cat.normz.tsv"
-    conda: "envs/watershed.yml"
-    shell:
-        '''
-        Rscript scripts/norm_zscores.R {input} {config[zscores]} > {output}
-        '''   
-
 # Impute missing values
 rule impute_missing:
     input:
-       tsv="data/watershed/{prefix}.pairlabel.cat.normz.tsv",
+       tsv="data/watershed/{prefix}.pairlabel.cat.tsv",
        impute=config["impute"]
-    output: "data/watershed/{prefix}.pairlabel.cat.normz.impute.tsv"
+    output: "data/watershed/{prefix}.pairlabel.cat.impute.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
@@ -239,12 +229,14 @@ rule impute_missing:
 # Drop and rename columns for Watershed
 rule format:
     input:
-       tsv="data/watershed/{prefix}.pairlabel.cat.normz.impute.tsv",
+       tsv="data/watershed/{prefix}.pairlabel.cat.impute.tsv",
        drop=config["drop"],
        rename=config["rename"]
     output: 
-        tsv_tmp=temp("data/watershed/{prefix}.pairlabel.cat.normz.impute.format_tmp.tsv"),
-        tsv="data/watershed/{prefix}.pairlabel.cat.normz.impute.format.tsv"
+        tsv_tmp=temp("data/watershed/{prefix}.pairlabel.cat.impute.format_tmp.tsv"),
+        tsv="data/watershed/{prefix}.pairlabel.cat.impute.format.tsv",
+        tsv_test="data/watershed/{prefix}.pairlabel.cat.impute.format.test.tsv",
+        tsv_train="data/watershed/{prefix}.pairlabel.cat.impute.format.train.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
@@ -258,16 +250,28 @@ rule format:
             awk '{{if(NR==FNR){{ a[$1]=$2 }} else{{ for(i=1;i<=NF;i++) {{ $i=a[$i]?a[$i]:$i }} print $0 }}}}' \
             FS=',' {input.rename} FS='\\t' - > {output.tsv}
         tail -n +2 {output.tsv_tmp} >> {output.tsv}
+     
+        # create 'train' and 'test' sets for predict_watershed function
+        NF=$(head -n 1 {output.tsv}  | sed 's/\s/\\n/g' | wc -l)
+        head -n 1 {output.tsv} > {output.tsv_test}
+        cat {output.tsv} |  awk -v nf=$NF '$nf != "NA"' >> {output.tsv_test}
+        head -n 1 {output.tsv} > {output.tsv_train}
+        cat {output.tsv} |  awk -v nf=$NF '$nf == "NA"' >> {output.tsv_train}
         '''
 
 # Run Watershed
 rule watershed:
-    input: "data/watershed/{prefix}.pairlabel.cat.normz.impute.format.tsv"
-    output: "data/watershed/{prefix}.pairlabel.cat.normz.impute.format_results"
+    input: 
+        full="data/watershed/{prefix}.pairlabel.cat.impute.format.tsv",
+        train="data/watershed/{prefix}.pairlabel.cat.impute.format.train.tsv",
+        test="data/watershed/{prefix}.pairlabel.cat.impute.format.test.tsv",
+    output: 
+        eval="results/watershed/{prefix}.pairlabel.cat.impute.format_evaluation_object.rds",
+        predict="results/watershed/{prefix}.pairlabel.cat.impute.format_posterior_probability.txt"
     conda: "envs/watershed.yml"
     shell:
         '''
-        Rscript scripts/watershed.R {input} {config[num_outliers]} > {output}
+        Rscript scripts/watershed.R {input.full} {input.train} {input.test} {config[num_outliers]} results/watershed
         '''
 
 
