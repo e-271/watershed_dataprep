@@ -10,10 +10,8 @@ dependencies:
   - zlib
   - htslib
   - mysql=5.7.20
-  - bedtools
-  - pybedtools
   - expat
   - libxml2
   - libdb
   - snakemake
-prefix: /home/erobb/miniconda3/envs/vep
+

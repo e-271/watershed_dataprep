@@ -7,8 +7,7 @@ dependencies:
   - snakemake
   - htslib
   - bcftools
-  - vcfanno
   - r-devtools
   - xsv
   - gtftools
-prefix: /home/erobb/miniconda3/envs/watershed
+
