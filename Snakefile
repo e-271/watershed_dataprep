@@ -9,92 +9,74 @@ ln -s $VEP_HIDDEN .vep
 
 
 # TODO make a "rule all" and generalize other rule naming schemes
-# TODO add all non-VCF inputs to config (CADD, LOFTEE path, Gencode, paths to configuration files)
 
 configfile: "config/config.yaml"
 
-
-# Filter positions by MAF<0.01, AC>0. Also splits multi-allelic positions into biallelic records.
+# Filter positions by MAF<0.01, AC>0. 
+# Also splits multi-allelic record into biallelic records (e.g. if ALT=T,A split into 2 records with ALT=T, ALT=A).
 rule filter_rare:
     input: "data/vcf/{prefix}.vcf.gz"
-    output: "data/vcf/{prefix}.rare.vcf.gz"
+    output: "data/vcf/{prefix}.snp.rare.vcf.gz"
     conda: "envs/watershed.yml"
     shell:
         '''
-        bcftools norm -m -any {input} |  bcftools view --exclude "AF>0.01 | AC=0" -o {output}
+        # Rename chr[.] to [.]
+        for l in {{1..22}} X Y; do echo chr$l $l; done > rename_chr.tmp
+        bcftools norm -m -any {input} | 
+            bcftools view -i 'TYPE=\"snp\" & AF<=0.01 & AC>0' | 
+            bcftools annotate --rename-chrs rename_chr.tmp -o {output} 
         tabix {output}
         '''
 
 # Annotate samples with CADD
-# TODO may not be handling deletions properly due to differences in format between vcf and cadd
+# TODO remove cadd_indels
 rule cadd:
-    input:
-        vcf="data/vcf/{prefix}.rare.vcf.gz",
-        cadd_cols=config["cadd_cols"],
-        cadd=config["cadd"],
-        cadd_indel=config["cadd_indels"]
+    input: "data/vcf/{prefix}.rare.vcf.gz",
     output: "data/vcf/{prefix}.rare.CADD.vcf.gz"
     conda: "envs/watershed.yml"
     shell:
        '''
-        sh scripts/anno_cadd.sh {input.cadd} {input.cadd_indel} {input.cadd_cols} {input.vcf} | bgzip > {output}
+        sh scripts/anno_cadd.sh {config[cadd]} {config[cadd_indels]} {config[cadd_cols]} {input} | bgzip > {output}
        tabix {output}
        '''
 
 # Annotate rare variants with VEP
 # Note that VEP does not support multithreading with the loftee plugin, so this needs to be run single-threaded.
-# TODO VEP --distance=5000 by default for annotating upstream/downstream effects, we want this to be 10k presumably?
 rule vep:
-    input:
-        vcf="data/vcf/{prefix}.rare.vcf.gz",
-        human_ancestor=config["human_ancestor"],
-        gerp_bigwig=config["gerp_bigwig"],
-        conservation_file=config["conservation_file"],
-        loftee_path=config["loftee_path"],
+    input: "data/vcf/{prefix}.rare.vcf.gz"
     output: 
         vep="data/vcf/{prefix}.rare.VEP.vcf",
         vepgz="data/vcf/{prefix}.rare.VEP.vcf.gz",
     conda: "envs/vep.yml"
     shell:
         '''
-        ensembl-vep/vep \
+        vep \
 --verbose \
 --vcf \
--i {input.vcf} \
+-i {input} \
 -o {output.vep} \
+--distance {config[vep_window]} \
 --no_stats \
 --force_overwrite \
 --offline \
 --dir_cache data/vep \
 --plugin LoF,\
-human_ancestor_fa:{input.human_ancestor},\
-loftee_pat/:{input.loftee_path},\
-conservation_file:{input.conservation_file},\
-gerp_bigwig:{input.gerp_bigwig}
+human_ancestor_fa:{config[human_ancestor]},\
+loftee_path:{config[loftee_path]},\
+conservation_file:{config[conservation_file]},\
+gerp_bigwig:{config[gerp_bigwig]}
         bgzip --keep {output.vep}
         tabix {output.vepgz}
-        '''
-
-# Split all VEP annotations into INFO/* fields
-rule split_vep:
-    input: "data/vcf/{prefix}.rare.VEP.vcf.gz"
-    output: "data/vcf/{prefix}.rare.VEP_split.vcf.gz"
-    conda: "envs/watershed.yml"
-    shell:
-        '''
-        fields=$(bcftools +split-vep {input} -l | cut -f 2 | tr '\n' ',')
-        for l in {{1..22}} X Y; do echo chr$l $l; done > rename_chr.tmp
-        bcftools +split-vep {input} -c $fields -d | bcftools annotate --rename-chrs rename_chr.tmp -x INFO/CSQ -o {output} 
-        tabix {output}
-        '''
+    '''
 
 # Can run VEP and CADD simultaneously & combine them afterwards to save time.
+# This needs to happen before vep-split due to bcftools annotate not annotating multiple matching lines.
 rule combine_annotations:
     input:
         vcf1="data/vcf/{prefix}.rare.CADD.vcf.gz",
-        vcf2="data/vcf/{prefix}.rare.VEP_split.vcf.gz",
+        vcf2="data/vcf/{prefix}.rare.VEP.vcf.gz",
     output:
-        "data/vcf/{prefix}.rare.CADD.VEP_split.vcf.gz",
+        "data/vcf/{prefix}.rare.CADD.VEP.vcf.gz",
     conda: "envs/watershed.yml"
     shell:
         '''
@@ -102,23 +84,30 @@ rule combine_annotations:
         tabix {output}
         '''
 
-# Split multi-sample VCF into a directory of single-sample VCFs
-rule split_samples:
-    input:
-        "data/vcf/{prefix}.rare.CADD.VEP_split.vcf.gz"
-    output:
-        directory("data/vcf/{prefix}.rare.CADD.VEP_split.id_split")
+# Split all VEP annotations into INFO/* fields, and split multiple gene annotations into separate records
+rule split_vep:
+    input: "data/vcf/{prefix}.rare.CADD.VEP.vcf.gz"
+    output: "data/vcf/{prefix}.rare.CADD.VEP_split.vcf.gz"
     conda: "envs/watershed.yml"
     shell:
         '''
-        bcftools +split {input} -o {output} -i 'GT="alt"'
-        for f in {output}/*; do
-            bgzip $f 
-            tabix $f.gz
-        done
+        fields=$(bcftools +split-vep {input} -l | cut -f 2 | tr '\n' ',')
+        bcftools +split-vep {input} -c $fields -d | \
+            bcftools annotate -x INFO/CSQ -o {output}
+        tabix {output}
         '''
 
-# Filter & reformat gencode GTF file.
+# Format rare variants to a tsv
+rule tsv_format:
+    input: "data/vcf/{prefix}.rare.CADD.VEP_split.vcf.gz"
+    output: "data/watershed/{prefix}.all.tsv"
+    conda: "envs/watershed.yml"
+    shell:
+        '''
+        sh scripts/format.sh {input} {config[aggregate]} > {output}
+        '''
+
+# Format gencode GTF file & filter by protein-coding / lincRNA genes.
 rule gencode:
     input:
         expand("data/gencode/{prefix}.gtf", prefix=config["gencode"])
@@ -130,23 +119,8 @@ rule gencode:
         '''
         # Generate gene position bedfile 
         gtftools -g {output.genes} {input}
-        # Filter & convert to (name, chr, start, end) tsv
-        cat {output.genes} | awk '{{if($7 == "lincRNA" || $7 == "protein_coding") {{print $5 FS $1 FS $2 FS $3}} }}' > {output.tsv}
-        '''
-
-# Aggregate each individual's rare variants over each gene.
-rule aggregate:
-    input:
-        vcf=directory("data/vcf/{prefix}.rare.CADD.VEP_split.id_split"),
-        gencode=expand("data/gencode/{gencode}.gene_pos.protein_coding.lincRNA.tsv", gencode=config["gencode"]), 
-        aggregate=config["aggregate"]
-    output: 
-        "data/watershed/{prefix}.tsv"
-    conda: "envs/watershed.yml"
-    threads: 32
-    shell:
-        '''
-        sh scripts/agg.sh {input.vcf} {input.aggregate} {input.gencode} {threads} > {output}
+        # Filter, convert to list of gene names, and remove version number (.*)
+        cat {output.genes} | awk '{{if($7 == "lincRNA" || $7 == "protein_coding") {{print $5}} }}' | sed 's/\.[0-9]*$//g' > {output.tsv}
         '''
 
 # Split outlier scores to 1 line per sample, and remove .[0-9]* in Ensemble identifiers
@@ -158,17 +132,30 @@ rule format_outliers:
     conda: "envs/watershed.yml"
     shell:
         '''
+        # Flatten expression matrix to (gene,subject) rows
         sh scripts/flatten.sh {input} {wildcards.type} > {output}
+        '''
+
+# Aggregate each individual's rare variants over each gene.
+# The R version requires a lot of memory but is much faster. To reduce memory, split the inputs by subject and/or chromosome.
+# There is also a bcftools version in agg.sh, which takes several days to run but uses little memory.
+rule aggregate:
+    input: "data/watershed/{prefix}.all.tsv"
+    output: "data/watershed/{prefix}.agg.tsv"
+    conda: "envs/watershed.yml"
+    shell:
+        '''
+        Rscript scripts/agg.R {input} {config[aggregate]} {config[types]} > {output}
         '''
 
 # Outlier scores are stored in an array of (gene) x (sample id).
 rule add_outlier_scores:
     input:
-        tsv="data/watershed/{prefix}.tsv",
+        tsv="data/watershed/{prefix}.agg.tsv",
         scores="data/outliers/{prefix}_{type}.split.tsv"
     output:
         tsv_tmp=temp("data/watershed/{prefix}.{type}_tmp.tsv"),
-        tsv="data/watershed/{prefix}.{type}.tsv"
+        tsv="data/watershed/{prefix}.{type}.agg.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
@@ -178,14 +165,27 @@ rule add_outlier_scores:
         xsv select '!Gene[1],Sample[1]' {output.tsv_tmp} -o {output.tsv} 
         '''   
 
+# Filter to protein-coding / lincRNA genes with at least 1 eOutlier
+rule filter_genes:
+    input: 
+        tsv="data/watershed/{prefix}.eOutliers.agg.tsv",
+        pc_linc=expand("data/gencode/{gencode}.gene_pos.protein_coding.lincRNA.tsv", gencode=config["gencode"]) 
+    output:
+        "data/watershed/{prefix}.eOutliers.agg.filt.tsv"
+    shell:
+        '''
+        # Filter tsv to these genes
+        Rscript scripts/filter_genes.R {input.tsv} {input.pc_linc} {config[zthreshold]} {config[maxnout]} > {output}
+        '''
+
 # Label individuals with the same set of variants within each gene window.
 rule label_pairs:
     input:
-        "data/watershed/{prefix}.tsv",
+        "data/watershed/{prefix}.agg.filt.tsv",
     output:
-        pairs=temp("data/watershed/{prefix}.pairs.tsv"),
-        tsv_tmp=temp("data/watershed/{prefix}.pairlabel_tmp.tsv"),
-        tsv="data/watershed/{prefix}.pairlabel.tsv"
+        pairs=temp("data/watershed/{prefix}.agg.filt.pairs.tsv"),
+        tsv_tmp=temp("data/watershed/{prefix}.agg.filt.pairlabel_tmp.tsv"),
+        tsv="data/watershed/{prefix}.agg.filt.pairlabel.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
@@ -205,9 +205,9 @@ rule label_pairs:
 # Encode categorical variables (represented in a single column as comma-separated strings) as binary vectors.
 rule encode_categorical:
     input: 
-       tsv="data/watershed/{prefix}.pairlabel.tsv",
+       tsv="data/watershed/{prefix}.agg.filt.pairlabel.tsv",
        cat=config["categorical"]
-    output: "data/watershed/{prefix}.pairlabel.cat.tsv"
+    output: "data/watershed/{prefix}.agg.filt.pairlabel.cat.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
@@ -217,9 +217,9 @@ rule encode_categorical:
 # Impute missing values
 rule impute_missing:
     input:
-       tsv="data/watershed/{prefix}.pairlabel.cat.tsv",
+       tsv="data/watershed/{prefix}.agg.filt.pairlabel.cat.tsv",
        impute=config["impute"]
-    output: "data/watershed/{prefix}.pairlabel.cat.impute.tsv"
+    output: "data/watershed/{prefix}.agg.filt.pairlabel.cat.impute.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
@@ -229,14 +229,14 @@ rule impute_missing:
 # Drop and rename columns for Watershed
 rule format:
     input:
-       tsv="data/watershed/{prefix}.pairlabel.cat.impute.tsv",
+       tsv="data/watershed/{prefix}.agg.filt.pairlabel.cat.impute.tsv",
        drop=config["drop"],
        rename=config["rename"]
     output: 
-        tsv_tmp=temp("data/watershed/{prefix}.pairlabel.cat.impute.format_tmp.tsv"),
-        tsv="data/watershed/{prefix}.pairlabel.cat.impute.format.tsv",
-        tsv_test="data/watershed/{prefix}.pairlabel.cat.impute.format.test.tsv",
-        tsv_train="data/watershed/{prefix}.pairlabel.cat.impute.format.train.tsv"
+        tsv_tmp=temp("data/watershed/{prefix}.agg.filt.pairlabel.cat.impute.format_tmp.tsv"),
+        tsv="data/watershed/{prefix}.agg.filt.pairlabel.cat.impute.format.tsv",
+        tsv_test="data/watershed/{prefix}.agg.filt.pairlabel.cat.impute.format.test.tsv",
+        tsv_train="data/watershed/{prefix}.agg.filt.pairlabel.cat.impute.format.train.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
@@ -245,7 +245,7 @@ rule format:
         while read drop_col; do drop="${{drop}}${{drop_col}}[0],"; done < {input.drop}
         xsv select $drop {input.tsv} -o {output.tsv_tmp}
  
-        # rename
+        # rename columns
         head -n 1 {output.tsv_tmp} | \
             awk '{{if(NR==FNR){{ a[$1]=$2 }} else{{ for(i=1;i<=NF;i++) {{ $i=a[$i]?a[$i]:$i }} print $0 }}}}' \
             FS=',' {input.rename} FS='\\t' - > {output.tsv}

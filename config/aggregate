@@ -1,5 +1,6 @@
 POS,append
 ALT,append
+AF,min
 Consequence,unique
 LoF,unique
 GC,max
