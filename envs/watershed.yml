@@ -1,13 +1,23 @@
-name: watershed
+name: r
 channels:
+  - defaults
   - conda-forge
   - bioconda
-  - defaults
+  - dnachun
 dependencies:
-  - snakemake
-  - htslib
+  - r-languageserver
+  - r-tidyverse
+  - r-colorout
+  - r-pacman
+  - r-irkernel
+  - ca-certificates
+  - openssl
+  - jupyter
   - bcftools
-  - r-devtools
+  - certifi
+  - snakemake
   - xsv
-  - gtftools
-
+  - r-watershedr
+  - r-optparse
+  - r-devtools
+prefix: /home/erobb/micromamba/envs/r

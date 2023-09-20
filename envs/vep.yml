@@ -1,17 +1,16 @@
-name: vep
+name: vep90_lof
 channels:
+  - defaults
   - conda-forge
   - bioconda
-  - defaults
+  - dnachun
 dependencies:
-  - gxx
-  - gcc
-  - perl=5.26
-  - zlib
-  - htslib
-  - mysql=5.7.20
-  - expat
-  - libxml2
-  - libdb
-  - snakemake
-
+  - ensembl-vep=90
+  - perl-bio-bigfile
+  - perl-bio-procedural
+  - ca-certificates
+  - certifi
+  - openssl
+  - perl-dbd-sqlite
+  - samtools
+prefix: /home/erobb/micromamba/envs/vep90_lof

@@ -9,10 +9,15 @@ human_ancestor: data/vep/hg38/human_ancestor.fa.gz
 gerp_bigwig: data/vep/hg38/gerp_conservation_scores.homo_sapiens.GRCh38.bw
 conservation_file: data/vep/hg38/loftee.sql
 loftee_path: .vep/Plugins
+vep_window: "10000"
 
 # Config for gencode & aggregation
+#zthreshold: "3"
+zthreshold: "2.576" # pvalue=0.01
+maxnout: "125" # pvalue=0.01
 gencode: gencode.v27.annotation.chr-renamed
 aggregate: config/aggregate
+types: config/types
 
 # Config for Watershed
 categorical: config/categorical
@@ -21,5 +26,4 @@ zscores: eOutliers
 drop: config/drop
 rename: config/rename
 num_outliers: "1"
-
 
