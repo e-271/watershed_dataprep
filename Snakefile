@@ -1,10 +1,7 @@
 
-# Make symlinks to data folder and VEP folder from project root as follows:
+# Make symlinks to data folder from project root:
 """
-cd watershed
 ln -s $DATA_PATH data
-ln -s $VEP_PATH ensembl-vep
-ln -s $VEP_HIDDEN .vep
 """
 
 
@@ -12,7 +9,7 @@ ln -s $VEP_HIDDEN .vep
 
 configfile: "config/config.yaml"
 
-# Filter positions by MAF<0.01, AC>0. 
+# Filter to SNPs with MAF<0.01, AC>0, and rename chromosomes to match CADD (chr1 -> 1). 
 # Also splits multi-allelic record into biallelic records (e.g. if ALT=T,A split into 2 records with ALT=T, ALT=A).
 rule filter_rare:
     input: "data/vcf/{prefix}.vcf.gz"
@@ -29,7 +26,6 @@ rule filter_rare:
         '''
 
 # Annotate samples with CADD
-# TODO remove cadd_indels
 rule cadd:
     input: "data/vcf/{prefix}.rare.vcf.gz",
     output: "data/vcf/{prefix}.rare.CADD.vcf.gz"
