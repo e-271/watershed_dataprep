@@ -7,9 +7,6 @@ Data preprocessing pipeline for [WatershedR](https://github.com/nicolerg/Watersh
     - SNVs (HG38):
       - [tsv.gz](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz) (313G)
       - [tbi](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz.tbi)
-    - Indels (HG38):
-      - [tsv.gz](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz) (7.6G)
-      - [tbi](https://krishna.gs.washington.edu/download/CADD/v1.6/GRCh38/whole_genome_SNVs_inclAnno.tsv.gz.tbi)
 
 If you use a different genome build or filepath for CADD, update `config/config.yaml`.
 
