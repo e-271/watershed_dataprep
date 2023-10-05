@@ -1,23 +1,16 @@
 name: r
 channels:
-  - defaults
   - conda-forge
+  - r
   - bioconda
-  - dnachun
+  - defaults
 dependencies:
-  - r-languageserver
+  - r
   - r-tidyverse
-  - r-colorout
-  - r-pacman
-  - r-irkernel
-  - ca-certificates
-  - openssl
-  - jupyter
+  - r-dplyr>=1.1
   - bcftools
-  - certifi
   - snakemake
+  - r-optparse
   - xsv
   - r-watershedr
-  - r-optparse
-  - r-devtools
 prefix: /home/erobb/micromamba/envs/r

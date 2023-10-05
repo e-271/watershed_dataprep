@@ -2,7 +2,6 @@
 # Config for CADD annotation input files
 cadd_cols: config/cadd_columns
 cadd: data/cadd/whole_genome_SNVs_inclAnno.tsv.gz
-cadd_indels: data/cadd/gnomad.genomes.r3.0.indel_inclAnno.tsv.gz
 
 # Config for VEP annotation input files
 human_ancestor: data/vep/hg38/human_ancestor.fa.gz
@@ -10,14 +9,16 @@ gerp_bigwig: data/vep/hg38/gerp_conservation_scores.homo_sapiens.GRCh38.bw
 conservation_file: data/vep/hg38/loftee.sql
 loftee_path: .vep/Plugins
 vep_window: "10000"
+gnomad: data/gnomad/3.1/gnomad.genomes.v3.1.2.sites.trimmed_info.vcf.gz 
 
 # Config for gencode & aggregation
 #zthreshold: "3"
 zthreshold: "2.576" # pvalue=0.01
-maxnout: "125" # pvalue=0.01
+maxnout: "250"
 gencode: gencode.v27.annotation.chr-renamed
 aggregate: config/aggregate
 types: config/types
+format: config/format
 
 # Config for Watershed
 categorical: config/categorical
@@ -25,5 +26,6 @@ impute: config/impute
 zscores: eOutliers
 drop: config/drop
 rename: config/rename
-num_outliers: "1"
+num_outliers: "1" # number of outlier signals
+pvalue: 0.05
 

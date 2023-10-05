@@ -1,9 +1,8 @@
 #!/bin/bash
 
 cadd=$1
-cadd_indel=$2
-cadd_cols=$3
-vcf=$4
+cadd_cols=$2
+vcf=$3
 
 
 # Tell bcftools what columns we want from CADD file, based on input.cols (assumes 1 column per line)
@@ -27,9 +26,7 @@ while IFS=',' read -r anno merge; do
 done < $cadd_cols
 
 for l in {1..22} X Y; do echo chr$l $l; done >  ${vcf}.rename_chr.tmp
-bcftools annotate --rename-chrs  ${vcf}.rename_chr.tmp $vcf \
-| bcftools annotate -a $cadd -c ${cols} -h  ${vcf}.header.tmp --merge-logic ${merge_logic} --min-overlap 1 \
-| bcftools annotate -a $cadd_indel -c ${cols} -h  ${vcf}.header.tmp --merge-logic ${merge_logic} --min-overlap 1
+bcftools annotate --rename-chrs  ${vcf}.rename_chr.tmp $vcf | bcftools annotate -a $cadd -c ${cols} -h  ${vcf}.header.tmp --merge-logic ${merge_logic} --min-overlap 1 
 
 rm  ${vcf}.rename_chr.tmp  ${vcf}.header.tmp  ${vcf}.all_columns.tmp
 

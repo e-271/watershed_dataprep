@@ -1,9 +1,8 @@
 name: vep90_lof
 channels:
-  - defaults
-  - conda-forge
-  - bioconda
   - dnachun
+  - bioconda
+  - conda-forge
 dependencies:
   - ensembl-vep=90
   - perl-bio-bigfile
@@ -13,4 +12,5 @@ dependencies:
   - openssl
   - perl-dbd-sqlite
   - samtools
+  - snakemake
 prefix: /home/erobb/micromamba/envs/vep90_lof

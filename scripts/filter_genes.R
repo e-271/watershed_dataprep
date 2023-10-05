@@ -5,8 +5,8 @@ args = commandArgs(trailingOnly=TRUE)
  
 tsv=args[1]
 keepgenes = unlist(read.table(args[2], header=F))
-zthresh=args[3]
-nout_thresh=args[4]
+zthresh=as.numeric(args[3])
+nout_thresh=as.numeric(args[4])
 
 df=read.table(tsv, header=T, sep="\t", na="")
 
@@ -16,6 +16,7 @@ has_outliers <- df %>% group_by(Gene) %>%
     summarise()
 has_outliers <- unlist(has_outliers)
 
+# TODO debug this
 # Samples with <threshold eOutliers
 under_outlier_thresh <- df %>% group_by(Sample) %>%
     summarise(noutliers=sum(abs(eOutliers) > zthresh)) %>%
