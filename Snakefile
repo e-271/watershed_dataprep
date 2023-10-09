@@ -34,7 +34,7 @@ rule filter_rare:
         # Rename chr[.] to [.]
         for l in {{1..22}} X Y; do echo chr$l $l; done > rename_chr.tmp
         bcftools norm -m -any {input} | 
-            bcftools view  -f PASS -i 'TYPE=\"snp\" & AF<=0.01 & AC>0' | 
+            bcftools view  -f PASS -i 'TYPE=\"snp\" & AF<=0.01 & AC>0' |
             bcftools annotate --rename-chrs rename_chr.tmp -o {output} 
         tabix {output}
         '''
@@ -62,7 +62,7 @@ rule vep:
     output: 
         vep="data/vcf/{prefix}.rare.VEP.gnomad.vcf",
         vepgz="data/vcf/{prefix}.rare.VEP.gnomad.vcf.gz",
-    conda: "envs/vep.yml"
+    conda: "envs/watershed.yml"
     shell:
         '''
         vep \
@@ -75,10 +75,11 @@ rule vep:
 --force_overwrite \
 --offline \
 --dir_cache data/vep \
+--dir_plugins {config[vep_plugins_dir]} \
 --custom file={config[gnomad]},short_name=gnomADg,format=vcf,type=exact,coords=0,fields=AF_afr%AF_amr%AF_asj%AF_eas%AF_fin%AF_nfe \
 --plugin LoF,\
 human_ancestor_fa:{config[human_ancestor]},\
-loftee_path:{config[loftee_path]},\
+loftee_path:{config[vep_plugins_dir]},\
 conservation_file:{config[conservation_file]},\
 gerp_bigwig:{config[gerp_bigwig]}
         bgzip --keep {output.vep}
