@@ -7,7 +7,7 @@ cadd: data/cadd/whole_genome_SNVs_inclAnno.tsv.gz
 human_ancestor: data/vep/hg38/human_ancestor.fa.gz
 gerp_bigwig: data/vep/hg38/gerp_conservation_scores.homo_sapiens.GRCh38.bw
 conservation_file: data/vep/hg38/loftee.sql
-loftee_path: .vep/Plugins
+vep_plugins_dir: "${VEP_PLUGINS_DIR}"
 vep_window: "10000"
 gnomad: data/gnomad/3.1/gnomad.genomes.v3.1.2.sites.trimmed_info.vcf.gz 
 

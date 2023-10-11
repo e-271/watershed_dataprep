@@ -4,7 +4,6 @@ cadd=$1
 cadd_cols=$2
 vcf=$3
 
-
 # Tell bcftools what columns we want from CADD file, based on input.cols (assumes 1 column per line)
 tabix -h $cadd 1:1-1 | tail -n 1 | sed 's/#//' | sed 's/\s/,/g' > ${vcf}.all_columns.tmp
 # Mark CADD columns to keep and discard

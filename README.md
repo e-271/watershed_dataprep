@@ -21,15 +21,20 @@ If you use a different genome build or filepath for CADD, update `config/config.
     - [Ensembl 110 / GRCh37](https://ftp.ensembl.org/pub/release-110/variation/indexed_vep_cache/#:~:text=homo_sapiens_vep_110_GRCh37.tar.gz) (20G)
     - Other versions can to be located within [https://ftp.ensembl.org/pub](https://ftp.ensembl.org/pub) or can be installed using VEP's `install.PL` script.
 
+3. Set the `${VEP_PLUGINS_DIR}` path variable. By default VEP installs plugins in `$HOME/.vep/Plugins`, but Conda environments will store this in `$CONDA_PREFIX/share/ensembl-vep-$VERSION`.
+    - If you use `ensemble-vep` conda packages from the `dnachun` channel, the `${VEP_PLUGINS_DIR}` environment variable will be set to the correct location by default.
+
 For full VEP installation instructions see the [VEP documentation](http://useast.ensembl.org/info/docs/tools/vep/script/vep_download.html).
 
 If you use a different genome build, Ensembl version or filepath for VEP, update `config/config.yaml`.
 
 ## Set up Loftee
 
-1. Install the [Loftee](https://github.com/konradjk/loftee) plugin for VEP in the folder `.vep/Plugins`:
-    - GRCh38: `git clone https://github.com/konradjk/loftee --branch grch38 .vep/Plugins`
-    - GRCh37: `git clone https://github.com/konradjk/loftee .vep/Plugins`
+VEP installs a version of loftee for HG37 among the default plugins. To use it you will need to install cache files (step 2). If your input is aligned to HG38 you can use one of the `ensemble-vep` conda packages from the `dnachun` channel which have loftee-hg38 installed, or copy the loftee-hg38 perl files from Github (step 1).
+
+
+1. [If using HG38] Install the [Loftee (hg38)](https://github.com/konradjk/loftee) plugin for VEP:
+    - GRCh38: `git clone https://github.com/konradjk/loftee --branch grch38 $VEP_PLUGINS_DIR`
 
 2. Download Loftee files to `data/vep`:
     - GERP (GRCh38):
@@ -38,7 +43,7 @@ If you use a different genome build, Ensembl version or filepath for VEP, update
       - [fa.gz](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/human_ancestor.fa.gz) (844M)
       - [fai](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/human_ancestor.fa.gz.fai)
       - [gzi](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/human_ancestor.fa.gz.gzi)
-    - PhyloCSV (GRCh38):
+    - PhyloCSV:
       - [sql.gz](https://personal.broadinstitute.org/konradk/loftee_data/GRCh38/loftee.sql.gz) (29M) unzip after downloading
 
 If you use a different genome build or filepath for Loftee, update `config/config.yaml`.

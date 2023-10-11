@@ -1,16 +1,23 @@
-name: r
+name: ws
 channels:
   - conda-forge
   - r
   - bioconda
+  - conda-forge
+  - dnachun
   - defaults
 dependencies:
-  - r
   - r-tidyverse
   - r-dplyr>=1.1
   - bcftools
+  - ensembl-vep
+  - perl-bio-bigfile
+  - perl-bio-procedural
+  - openssl
+  - perl-dbd-sqlite
+  - samtools
   - snakemake
   - r-optparse
   - xsv
   - r-watershedr
-prefix: /home/erobb/micromamba/envs/r
+prefix: /home/erobb/micromamba/envs/ws
