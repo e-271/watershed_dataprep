@@ -1,6 +1,6 @@
-POS_ALT,unique
-distTSS,min
-distTES,min
+POS,unique
+ALT,unique
+CHROM,unique
 AF,min
 gnomADg_AF_afr,min
 gnomADg_AF_amr,min

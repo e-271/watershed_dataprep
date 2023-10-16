@@ -4,20 +4,32 @@ args = commandArgs(trailingOnly=TRUE)
 tsv=args[1]
 config=args[2]
 
+drop_column <- function(df, col_name) {
+    j=which(colnames(df) == col_name)
+    return(cbind(df[1:(j-1)], df[(j+1):dim(df)[2]]))
+}
+
+
 # Convert string column to binary categorical vector.
 # Multiple categories may be represented in the same entry, eg: cat1,cat2,cat3
 to_cat = function(df, col_name, drop_cols) {
-    cons=strsplit(df[,col_name], ',')
-    f=unique(unlist(cons))
-    f=f[!is.na(f) & !("" == f)]
-    if (length(drop_cols)) {
-        f=f[!(f %in% drop_cols)]
+    df[,col] = as.character(df[,col])
+    col_split=strsplit(df[,col_name], ',')
+    cats=unique(unlist(col_split))
+    cats=cats[!is.na(cats) & !("" == cats)]
+    if (length(drop_cols)) { cats=cats[!(cats %in% drop_cols)] }
+    if (length(cats) < 1) {
+        warning(sprintf("No unique valid value in column %s. Dropping.", col_name))
+        df_cat <- drop_column(df, col_name)
+        if (col_name == "SIFTcat") { df_cat <- drop_column(df_cat, "SIFTval") } 
+        if (col_name == "PolyPhenCat") { df_cat <- drop_column(df_cat, "PolyPhenVal") } 
+        return(df_cat)
     }
-    bin=sapply(f, function(x) sapply(cons, function(y) x %in% y))
-    colnames(bin)=sapply(f, function(x) paste0(col_name,"_",x))
     j=which(colnames(df) == col_name)
-    df2=cbind(df[1:(j-1)], bin*1, df[(j+1):dim(df)[2]])
-    return(df2)
+    col_binary=sapply(cats, function(x) sapply(col_split, function(y) x %in% y))
+    colnames(col_binary)=sapply(cats, function(x) paste0(col_name,"_",x))
+    df_cat=cbind(df[1:(j-1)], col_binary*1, df[(j+1):dim(df)[2]])
+    return(df_cat)
 }
 
 df=read.table(tsv, fill=TRUE, header=1,sep="\t",na=c("", "NA"))
