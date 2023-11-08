@@ -57,6 +57,7 @@ rule cadd:
 # Note that VEP does not support multithreading with the loftee plugin, so this needs to be run single-threaded.
 # The --custom flag format varies by VEP version. For version-specific documentation see the VEP archives: 
 # http://useast.ensembl.org/info/website/archives/index.html
+# For gnomad v4 use the jointly called AFs: AF_joint_afr, AF_joint_amr, ...
 # VEP90,VEP103: --custom {config[gnomad]},gnomADg,vcf,exact,0,AF_afr,AF_amr,AF_asj,AF_eas,AF_sas,AF_fin,AF_nfe \
 # VEP110: --custom file={config[gnomad]},short_name=gnomADg,format=vcf,type=exact,coords=0,fields=AF_afr%AF_amr%AF_asj%AF_eas%AF_sas%AF_fin%AF_nfe \
 rule vep:
@@ -78,7 +79,7 @@ rule vep:
 --offline \
 --dir_cache data/vep \
 --dir_plugins {config[vep_plugins_dir]} \
---custom {config[gnomad]},gnomADg,vcf,exact,0,AF_afr,AF_amr,AF_asj,AF_eas,AF_sas,AF_fin,AF_nfe \
+--custom {config[gnomad]},gnomADg,vcf,exact,0,AF_joint_afr,AF_joint_amr,AF_joint_asj,AF_joint_eas,AF_joint_sas,AF_joint_fin,AF_joint_nfe \
 --plugin LoF,\
 human_ancestor_fa:{config[human_ancestor]},\
 loftee_path:{config[vep_plugins_dir]},\

@@ -9,7 +9,8 @@ gerp_bigwig: data/vep/hg38/gerp_conservation_scores.homo_sapiens.GRCh38.bw
 conservation_file: data/vep/hg38/loftee.sql
 vep_plugins_dir: "${VEP_PLUGINS_DIR}"
 vep_window: "10000"
-gnomad: data/gnomad/3.1/gnomad.genomes.v3.1.2.sites.trimmed_info.vcf.gz 
+#gnomad: data/gnomad/3.1/gnomad.genomes.v3.1.2.sites.trimmed_info.vcf.gz 
+gnomad: data/gnomad/gnomad.genomes.v4.0.0.sites.afonly.vcf.gz
 
 # Config for gencode & aggregation
 #zthreshold: "3"
