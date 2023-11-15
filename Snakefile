@@ -18,12 +18,12 @@ rule filter_rare_indels:
         '''
         for l in {{1..22}} X Y; do echo chr$l $l; done > rename_chr.tmp
         bcftools norm -m -any {input} |
-            bcftools view  -f PASS -i 'AF<=0.01 & AC>0' |
+            bcftools view  -f PASS -i 'AF<=0.01 & AC>0 & F_MISSING>0.1' | 
             bcftools annotate --rename-chrs rename_chr.tmp -o {output}
         tabix {output}
         '''
 
-# Filter positions by MAF<0.01, AC>0. 
+# Filter positions by MAF<0.01, AC>0, and <10% missing sample genotypes
 # Also splits multi-allelic record into biallelic records (e.g. if ALT=T,A split into 2 records with ALT=T, ALT=A).
 rule filter_rare:
     input: "data/vcf/{prefix}.vcf.gz"
@@ -34,7 +34,7 @@ rule filter_rare:
         # Rename chr[.] to [.]
         for l in {{1..22}} X Y; do echo chr$l $l; done > rename_chr.tmp
         bcftools norm -m -any {input} | 
-            bcftools view  -f PASS -i 'TYPE=\"snp\" & AF<=0.01 & AC>0' |
+            bcftools view  -f PASS -i 'TYPE=\"snp\" & AF<=0.01 & AC>0 & F_MISSING<0.1' |
             bcftools annotate --rename-chrs rename_chr.tmp -o {output} 
         tabix {output}
         '''
@@ -79,7 +79,7 @@ rule vep:
 --offline \
 --dir_cache data/vep \
 --dir_plugins {config[vep_plugins_dir]} \
---custom {config[gnomad]},gnomADg,vcf,exact,0,AF_joint_afr,AF_joint_amr,AF_joint_asj,AF_joint_eas,AF_joint_sas,AF_joint_fin,AF_joint_nfe \
+--custom file={config[gnomad]},short_name=gnomADg,format=vcf,type=exact,coords=0,fields=AF_joint_afr%AF_joint_amr%AF_joint_asj%AF_joint_eas%AF_joint_sas%AF_joint_fin%AF_joint_nfe \
 --plugin LoF,\
 human_ancestor_fa:{config[human_ancestor]},\
 loftee_path:{config[vep_plugins_dir]},\
