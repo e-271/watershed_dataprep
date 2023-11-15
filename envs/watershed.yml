@@ -10,6 +10,7 @@ dependencies:
   - r-tidyverse
   - r-dplyr>=1.1
   - bcftools
+  - gsl=2.7.0 # bug in gsl=2.7.1 with bcftools
   - ensembl-vep
   - perl-bio-bigfile
   - perl-bio-procedural

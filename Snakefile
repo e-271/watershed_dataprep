@@ -18,7 +18,7 @@ rule filter_rare_indels:
         '''
         for l in {{1..22}} X Y; do echo chr$l $l; done > rename_chr.tmp
         bcftools norm -m -any {input} |
-            bcftools view  -f PASS -i 'AF<=0.01 & AC>0 & F_MISSING>0.1' | 
+            bcftools view  -f PASS -i 'AF<=0.01 & AC>0 & F_MISSING<0.1' | 
             bcftools annotate --rename-chrs rename_chr.tmp -o {output}
         tabix {output}
         '''
