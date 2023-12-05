@@ -14,7 +14,7 @@ if(NR==1)
     {split($0,a,FS)}
 else{
     for(i=2; i<NF; i++){
-        print a[i] OFS $1 OFS $i }
+        print a[i-1] OFS $1 OFS $i }
     }
 }'
 
