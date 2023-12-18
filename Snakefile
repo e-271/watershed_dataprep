@@ -1,30 +1,8 @@
-
-# Make symlinks to data folder and VEP folder from project root as follows:
-"""
-cd watershed
-ln -s $DATA_PATH data
-ln -s $VEP_PATH ensembl-vep
-ln -s $VEP_HIDDEN .vep
-"""
-
-
+""" Prepare Watershed input data from a vcf. """
 configfile: "config/config.yaml"
 
-rule filter_rare_indels:
-    input: "data/vcf/{prefix}.vcf.gz"
-    output: "data/vcf/{prefix}.indel.rare.vcf.gz"
-    conda: "envs/watershed.yml"
-    shell:
-        '''
-        for l in {{1..22}} X Y; do echo chr$l $l; done > rename_chr.tmp
-        bcftools norm -m -any {input} |
-            bcftools view  -f PASS -i 'AF<=0.01 & AC>0 & F_MISSING<0.1' | 
-            bcftools annotate --rename-chrs rename_chr.tmp -o {output}
-        tabix {output}
-        '''
-
 # Filter positions by MAF<0.01, AC>0, and <10% missing sample genotypes
-# Also splits multi-allelic record into biallelic records (e.g. if ALT=T,A split into 2 records with ALT=T, ALT=A).
+# Splits multi-allelic record into biallelic records (e.g. if ALT=T,A split into 2 records with ALT=T, ALT=A).
 rule filter_rare:
     input: "data/vcf/{prefix}.vcf.gz"
     output: "data/vcf/{prefix}.snp.rare.vcf.gz"
@@ -54,12 +32,10 @@ rule cadd:
        '''
 
 # Annotate rare variants with VEP
-# Note that VEP does not support multithreading with the loftee plugin, so this needs to be run single-threaded.
+# VEP does not support multithreading with the loftee plugin, so this needs to be run single-threaded.
 # The --custom flag format varies by VEP version. For version-specific documentation see the VEP archives: 
 # http://useast.ensembl.org/info/website/archives/index.html
 # For gnomad v4 use the jointly called AFs: AF_joint_afr, AF_joint_amr, ...
-# VEP90,VEP103: --custom {config[gnomad]},gnomADg,vcf,exact,0,AF_afr,AF_amr,AF_asj,AF_eas,AF_sas,AF_fin,AF_nfe \
-# VEP110: --custom file={config[gnomad]},short_name=gnomADg,format=vcf,type=exact,coords=0,fields=AF_afr%AF_amr%AF_asj%AF_eas%AF_sas%AF_fin%AF_nfe \
 rule vep:
     input: "data/vcf/{prefix}.rare.vcf.gz"
     output: 
@@ -89,8 +65,7 @@ gerp_bigwig:{config[gerp_bigwig]}
         tabix {output.vepgz}
     '''
 
-# Can run VEP and CADD simultaneously & combine them afterwards to save time.
-# This needs to happen before vep-split due to bcftools annotate not annotating multiple matching lines.
+# Combine CADD and VEP annotated vcfs.
 rule combine_annotations:
     input:
         vcf1="data/vcf/{prefix}.rare.CADD.vcf.gz",
@@ -143,7 +118,7 @@ rule tsv_format:
         sh scripts/format.sh {input} {config[format]} > {output}
         '''
 
-# Format gencode GTF file & filter by protein-coding / lincRNA genes.
+# Format gencode file to use in gene-level aggregation. Filters by protein-coding / lincRNA genes.
 rule gencode:
     input:
         expand("data/gencode/{prefix}.gtf", prefix=config["gencode"])
@@ -176,8 +151,6 @@ rule format_outliers:
         '''
 
 # Aggregate each individual's rare variants over each gene.
-# The R version requires a lot of memory but is much faster. To reduce memory, split the inputs by subject and/or chromosome.
-# There is also a bcftools version in agg.sh, which takes several days to run but uses little memory.
 rule aggregate:
     input: 
         tsv="data/watershed/{prefix}.all.tsv",
@@ -189,7 +162,7 @@ rule aggregate:
         Rscript scripts/agg.R {input.tsv} {input.pc_linc} {config[aggregate]} {config[types]} {config[vep_window]} > {output}
         '''
 
-# Outlier scores are stored in an array of (gene) x (sample id).
+# Add outlier scores to tsv. 
 rule add_outlier_scores:
     input:
         tsv="data/watershed/{prefix}.agg.tsv",
@@ -210,13 +183,12 @@ rule add_outlier_scores:
 rule filter_genes:
     input: 
         tsv="data/watershed/{prefix}.eOutliers{cfg}.agg.tsv",
-        pc_linc=expand("data/gencode/{gencode}.protein_coding.lincRNA.gene_names.tsv", gencode=config["gencode"]) 
     output:
         "data/watershed/{prefix}.eOutliers{cfg}.agg.filt.tsv"
     shell:
         '''
         # Filter tsv to these genes
-        Rscript scripts/filter_genes.R {input.tsv} {input.pc_linc} {config[zthreshold]} {config[maxnout]} > {output}
+        Rscript scripts/filter_genes.R {input.tsv} {config[zthreshold]} {config[nout_std_thresh]} > {output}
         '''
 
 # Label individuals with the same set of variants within each gene window.
@@ -300,7 +272,7 @@ rule watershed:
     conda: "envs/watershed.yml"
     shell:
         '''
-        Rscript scripts/watershed.R {input.full} {input.train} {input.test} {config[num_outliers]} {config[pvalue]} {wildcards.seed} results/watershed/{wildcards.seed}
+        Rscript scripts/watershed.R {input.full} {input.train} {input.test} {config[num_outliers]} {config[pvalue]} {config[zthreshold]} {wildcards.seed} results/watershed/{wildcards.seed}
         '''
 
 

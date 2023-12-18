@@ -4,9 +4,8 @@ library(dplyr)
 args = commandArgs(trailingOnly=TRUE)
  
 tsv=args[1]
-keepgenes = unlist(read.table(args[2], header=F))
-zthresh=as.numeric(args[3])
-nout_thresh=as.numeric(args[4])
+zthresh=as.numeric(args[2])
+nout_std_thresh=as.numeric(args[3])
 
 df=read.table(tsv, header=T, sep="\t", na="")
 
@@ -16,14 +15,21 @@ has_outliers <- df %>% group_by(Gene) %>%
     summarise()
 has_outliers <- unlist(has_outliers)
 
-# TODO debug this
-# Samples with <threshold eOutliers
-under_outlier_thresh <- df %>% group_by(Sample) %>%
-    summarise(noutliers=sum(abs(eOutliers) > zthresh)) %>%
-    filter(noutliers < nout_thresh)
-under_outlier_thresh = under_outlier_thresh$Sample
+# Calculate # outliers per sample
+df_noutliers <- df %>% group_by(Sample) %>%
+    summarise(noutliers=sum(abs(eOutliers) > zthresh))
 
-df_keep <- df %>% filter(Gene %in% keepgenes & Gene %in% has_outliers) %>% filter(Sample %in% under_outlier_thresh)
+# Calculate # outlier threshold as (mean + std * nout_std_thresh)
+nu = mean(df_noutliers$noutliers)
+ns = sqrt(var(df_noutliers$noutliers))
+nout_thresh = round(nu + nout_std_thresh * ns)
+warning(sprintf("using maximum outlier threshold %d", nout_thresh))
 
+df_keep <- df %>% filter(Gene %in% has_outliers) %>% filter(Sample %in% under_outlier_thresh)
+
+# Convert zscores to signed pvalues
+df_keep = df_keep %>% mutate(eOutliers=sign(eOutliers) * pnorm(-abs(eOutliers))*2)
+
+# Convert zscores to signed pvalues
 write.table(df_keep,"",quote=FALSE,row.names=FALSE,na="",sep="\t")
 

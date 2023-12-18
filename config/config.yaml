@@ -15,7 +15,7 @@ gnomad: data/gnomad/gnomad.genomes.v4.0.0.sites.afonly.vcf.gz
 # Config for gencode & aggregation
 #zthreshold: "3"
 zthreshold: "2.576" # pvalue=0.01
-maxnout: "250"
+nout_std_thresh: "2.5"
 gencode: gencode.v27.annotation.chr-renamed
 aggregate: config/aggregate
 types: config/types
