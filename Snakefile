@@ -36,6 +36,8 @@ rule cadd:
 # The --custom flag format varies by VEP version. For version-specific documentation see the VEP archives: 
 # http://useast.ensembl.org/info/website/archives/index.html
 # For gnomad v4 use the jointly called AFs: AF_joint_afr, AF_joint_amr, ...
+# VEP90:
+#--custom {config[gnomad]},gnomADg,vcf,exact,0,AF_joint_afr,AF_joint_amr,AF_joint_asj,AF_joint_eas,AF_joint_sas,AF_joint_fin,AF_joint_nfe \
 rule vep:
     input: "data/vcf/{prefix}.rare.vcf.gz"
     output: 
@@ -104,7 +106,7 @@ rule rare_gnomad:
         # fixes a bug in VEP where gnomad AFs are assigned 'string' type. this line may not be necessary in newer VEP versions
         bcftools head {input} | sed '/^##INFO=<ID=gnomADg_AF/s/Type=String/Type=Float/g' | bcftools reheader -h - {input} -o {output.rh}
         tabix {output.rh}
-        bcftools view -i 'gnomADg_AF_afr<=0.01 & gnomADg_AF_amr<=0.01 & gnomADg_AF_asj<=0.01 & gnomADg_AF_eas<=0.01 & gnomADg_AF_fin<=0.01 & gnomADg_AF_nfe<=0.01' {output.rh} -o {output.rare}
+        bcftools view -i 'gnomADg_AF_joint_afr<=0.01 & gnomADg_AF_joint_amr<=0.01 & gnomADg_AF_joint_asj<=0.01 & gnomADg_AF_joint_eas<=0.01 & gnomADg_AF_joint_fin<=0.01 & gnomADg_AF_joint_nfe<=0.01 & gnomADg_AF_joint_sas<=0.01' {output.rh} -o {output.rare}
         tabix {output}
         '''
 
@@ -224,40 +226,22 @@ rule impute_missing:
     conda: "envs/watershed.yml"
     shell:
         '''
-        Rscript scripts/impute_missing.R {input.tsv} {input.impute} {config[num_outliers]} > {output}
+        uscript scripts/impute_missing.R {input.tsv} {input.impute} {config[num_outliers]} > {output}
         '''
 
 # Drop and rename columns for Watershed
 rule format:
     input:
        tsv="data/watershed/{prefix}.agg.filt.pairlabel.cat.impute.tsv",
-       drop=config["drop"],
        rename=config["rename"]
     output: 
-        tsv_tmp=temp("data/watershed/{prefix}.agg.filt.pairlabel.cat.impute.format_tmp.tsv"),
         tsv="data/watershed/{prefix}.agg.filt.pairlabel.cat.impute.format.tsv",
         tsv_test="data/watershed/{prefix}.agg.filt.pairlabel.cat.impute.format.test.tsv",
         tsv_train="data/watershed/{prefix}.agg.filt.pairlabel.cat.impute.format.train.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
-        # drop columns
-        drop='!'
-        while read drop_col; do drop="${{drop}}${{drop_col}}[0],"; done < {input.drop}
-        xsv select $drop {input.tsv} -o {output.tsv_tmp}
- 
-        # rename columns
-        head -n 1 {output.tsv_tmp} | \
-            awk '{{if(NR==FNR){{ a[$1]=$2 }} else{{ for(i=1;i<=NF;i++) {{ $i=a[$i]?a[$i]:$i }} print $0 }}}}' \
-            FS=',' {input.rename} FS='\\t' - > {output.tsv}
-        tail -n +2 {output.tsv_tmp} >> {output.tsv}
-     
-        # create 'train' and 'test' sets for predict_watershed function
-        NF=$(head -n 1 {output.tsv}  | sed 's/\s/\\n/g' | wc -l)
-        head -n 1 {output.tsv} > {output.tsv_test}
-        cat {output.tsv} |  awk -v nf=$NF '$nf != "NA"' >> {output.tsv_test}
-        head -n 1 {output.tsv} > {output.tsv_train}
-        cat {output.tsv} |  awk -v nf=$NF '$nf == "NA"' >> {output.tsv_train}
+        Rscript scripts/train_split.R {input.tsv} {input.rename}
         '''
 
 # Run Watershed

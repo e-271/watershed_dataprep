@@ -1,10 +1,11 @@
 AF,NA
-gnomADg_AF_afr,NA
-gnomADg_AF_amr,NA
-gnomADg_AF_asj,NA
-gnomADg_AF_eas,NA
-gnomADg_AF_fin,NA
-gnomADg_AF_nfe,NA
+gnomADg_AF_joint_afr,NA
+gnomADg_AF_joint_amr,NA
+gnomADg_AF_joint_asj,NA
+gnomADg_AF_joint_eas,NA
+gnomADg_AF_joint_fin,NA
+gnomADg_AF_joint_nfe,NA
+gnomADg_AF_joint_sas,NA
 distTSS,NA
 distTES,NA
 Consequence_splice_acceptor_variant,0

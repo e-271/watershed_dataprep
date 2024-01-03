@@ -1,4 +1,5 @@
 #!/usr/bin/env Rscript
+library(dplyr)
 
 args = commandArgs(trailingOnly=TRUE)
 tsv=args[1]
@@ -22,5 +23,6 @@ warning(paste(c("Columns from data not found in config/impute:", missing), colla
 for (col in impute_cols){
   df[is.na(df[,col]),col] = impute[col,]
 }
+
 
 write.table(df,"",quote=FALSE,row.names=FALSE, na="NA", sep="\t")

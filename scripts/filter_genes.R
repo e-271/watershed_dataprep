@@ -25,6 +25,12 @@ ns = sqrt(var(df_noutliers$noutliers))
 nout_thresh = round(nu + nout_std_thresh * ns)
 warning(sprintf("using maximum outlier threshold %d", nout_thresh))
 
+# Filter
+under_outlier_thresh <- df_noutliers %>%
+    filter(noutliers < nout_thresh) %>%
+    select(Sample)
+under_outlier_thresh <- unlist(under_outlier_thresh)
+
 df_keep <- df %>% filter(Gene %in% has_outliers) %>% filter(Sample %in% under_outlier_thresh)
 
 # Convert zscores to signed pvalues
