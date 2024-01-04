@@ -27,6 +27,6 @@ impute: config/impute
 zscores: eOutliers
 drop: config/drop
 rename: config/rename
-num_outliers: "1" # number of outlier signals
+num_outliers: "2" # number of outlier signals
 pvalue: 0.01
 

@@ -152,13 +152,25 @@ rule aggregate:
 # Add eOutliers and apply eOutlier filtering criteria.
 rule add_eoutliers:
     input: 
-        tsv="data/watershed/{prefix}.agg.tsv",
-        scores="data/outliers/{prefix}_eOutliers{cfg}.split.tsv"
+        tsv="data/watershed/{prefix}.{cfg}.agg.tsv",
+        scores="data/outliers/{prefix}.eOutliers.tsv"
     output:
-        "data/watershed/{prefix}.eOutliers{cfg}.agg.tsv"
+        "data/watershed/{prefix}.{cfg}.eOutliers.agg.tsv"
     shell:
         '''
         Rscript scripts/add_eout.R {input.tsv} {input.scores} {config[zthreshold]} {config[nout_std_thresh]} > {output}
+        '''
+
+# Add sOutliers and adjust minimum empirical pvalues.
+rule add_soutliers:
+    input: 
+        tsv="data/watershed/{prefix}.{cfg}.agg.tsv",
+        scores="data/soutliers/{prefix}.sOutliers.min_empirical_pvalue_gene.tsv"
+    output:
+        "data/watershed/{prefix}.{cfg}.sOutliers.agg.tsv"
+    shell:
+        '''
+        Rscript scripts/add_sout.R {input.tsv} {input.scores} {config[pvalue]} > {output}
         '''
 
 # Label individuals with the same set of variants within each gene window.
