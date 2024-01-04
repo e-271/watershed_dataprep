@@ -15,13 +15,13 @@ type_df = read.table(types, header=F, sep=',', row.names=1)
 types=as.list(t(type_df))
 names(types) = row.names(type_df)
 df=read.table(tsv, header=T, sep="\t", colClasses=types)  
-df <- df %>% rename(vepGene = Gene)
+df <- df %>% rename(vepGene = GeneName) # Each variant may have several VEP anno for different genes
 
 aggf = read.table(aggf, header=F, sep=',', col.names=c("col", "fn"))
 gencode=read.table(gencode)
 
 # Label gencode gene regions within +-10kb window
-colnames(gencode)=c("chr", "start", "end", "strand", "Gene", "gene_name", "type")
+colnames(gencode)=c("chr", "start", "end", "strand", "GeneName", "gene_name", "type")
 gencode <- gencode %>% 
             select(-strand) %>% 
             mutate(window_start = start-window, window_end = end+window) 
@@ -52,15 +52,15 @@ col_vep_uniq <- aggf %>% filter(fn=="vep_unique") %>% select("col")
 
 # Summarise over (subject,gene) pairs
 agg_df <- df %>% 
-    group_by(Sample,Gene) %>% 
+    group_by(SubjectID,GeneName) %>% 
     summarize(across(as.vector(unlist(col_max)), ~max(clean(spl(.x)))), 
               across(as.vector(unlist(col_min)), ~min(clean(spl(.x)))), 
               across(as.vector(unlist(col_uniq)), ~summ_unique(clean(spl(.x)))),
-              across(as.vector(unlist(col_vep_uniq)), ~summ_unique(clean(spl(.x[Gene == vepGene] )))),
+              across(as.vector(unlist(col_vep_uniq)), ~summ_unique(clean(spl(.x[GeneName == vepGene] )))),
     .groups="keep")
 
 # reorder column names
-agg_df <- agg_df[c("Sample", "Gene", aggf$col)]
+agg_df <- agg_df[c("SubjectID", "GeneName", aggf$col)]
 
 # Write dataframe to stdout
 write.table(agg_df,"",quote=FALSE,row.names=FALSE,na="",sep="\t")

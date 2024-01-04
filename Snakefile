@@ -9,7 +9,7 @@ rule filter_rare:
     conda: "envs/watershed.yml"
     shell:
         '''
-        # Rename chr[.] to [.]
+        # Rename chr[.] to [.] for matching with CADD
         for l in {{1..22}} X Y; do echo chr$l $l; done > rename_chr.tmp
         bcftools norm -m -any {input} | 
             bcftools view  -f PASS -i 'TYPE=\"snp\" & AF<=0.01 & AC>0 & F_MISSING<0.1' |
@@ -82,6 +82,7 @@ rule combine_annotations:
         '''
 
 # Split all VEP annotations into INFO/* fields, and split multiple gene annotations into separate records
+# Note this needs to happen after combining with CADD annotations, otherwise bcftools annotation will only annotation the 1st match.
 rule split_vep:
     input: "data/vcf/{prefix}.rare.CADD.VEP.gnomad.vcf.gz"
     output: "data/vcf/{prefix}.rare.CADD.VEP.gnomad.split.vcf.gz"
@@ -103,7 +104,7 @@ rule rare_gnomad:
     conda: "envs/watershed.yml"
     shell:
         '''
-        # fixes a bug in VEP where gnomad AFs are assigned 'string' type. this line may not be necessary in newer VEP versions
+        # Fix a bug in VEP where gnomad AFs are assigned 'string' type. this line may not be necessary in newer VEP versions
         bcftools head {input} | sed '/^##INFO=<ID=gnomADg_AF/s/Type=String/Type=Float/g' | bcftools reheader -h - {input} -o {output.rh}
         tabix {output.rh}
         bcftools view -i 'gnomADg_AF_joint_afr<=0.01 & gnomADg_AF_joint_amr<=0.01 & gnomADg_AF_joint_asj<=0.01 & gnomADg_AF_joint_eas<=0.01 & gnomADg_AF_joint_fin<=0.01 & gnomADg_AF_joint_nfe<=0.01 & gnomADg_AF_joint_sas<=0.01' {output.rh} -o {output.rare}
@@ -127,7 +128,6 @@ rule gencode:
     output:
         bed="data/gencode/{prefix}.bed",
         filt_bed="data/gencode/{prefix}.protein_coding.lincRNA.bed",
-        tsv="data/gencode/{prefix}.protein_coding.lincRNA.gene_names.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
@@ -135,21 +135,6 @@ rule gencode:
         gtftools -g {output.bed} {input}
         # Filter, convert to list of gene names, and remove version number (.*)
         cat {output.bed} | awk '{{if($7 == "lincRNA" || $7 == "protein_coding") {{print $0}} }}' | sed 's/\.[0-9]*//g' > {output.filt_bed}
-        # List of gene names only
-        cut -f5 {output.filt_bed} > {output.tsv}
-        '''
-
-# Split outlier scores to 1 line per sample, and remove .[0-9]* in Ensemble identifiers
-rule format_outliers:
-    input:
-        "data/outliers/{prefix}_{type}-{cfg}.tsv"
-    output:
-        "data/outliers/{prefix}_{type}-{cfg}.split.tsv"
-    conda: "envs/watershed.yml"
-    shell:
-        '''
-        # Flatten expression matrix to (gene,subject) rows
-        sh scripts/flatten.sh {input} {wildcards.type} > {output}
         '''
 
 # Aggregate each individual's rare variants over each gene.
@@ -162,43 +147,26 @@ rule aggregate:
     shell:
         '''
         Rscript scripts/agg.R {input.tsv} {input.pc_linc} {config[aggregate]} {config[types]} {config[vep_window]} > {output}
-        '''
-
-# Add outlier scores to tsv. 
-rule add_outlier_scores:
-    input:
-        tsv="data/watershed/{prefix}.agg.tsv",
-        scores="data/outliers/{prefix}_{type}.split.tsv"
-    output:
-        tsv_tmp=temp("data/watershed/{prefix}.{type}_tmp.tsv"),
-        tsv="data/watershed/{prefix}.{type}.agg.tsv"
-    conda: "envs/watershed.yml"
-    shell:
-        '''
-        # Join input file with outliers file
-        xsv join Sample,Gene {input.tsv} Sample,Gene {input.scores} -o {output.tsv_tmp}
-        # Remove duplicate columns used for matching
-        xsv select '!Gene[1],Sample[1]' {output.tsv_tmp} -o {output.tsv} 
         '''   
 
-# Filter to protein-coding / lincRNA genes with at least 1 eOutlier
-rule filter_genes:
+# Add eOutliers and apply eOutlier filtering criteria.
+rule add_eoutliers:
     input: 
-        tsv="data/watershed/{prefix}.eOutliers{cfg}.agg.tsv",
+        tsv="data/watershed/{prefix}.agg.tsv",
+        scores="data/outliers/{prefix}_eOutliers{cfg}.split.tsv"
     output:
-        "data/watershed/{prefix}.eOutliers{cfg}.agg.filt.tsv"
+        "data/watershed/{prefix}.eOutliers{cfg}.agg.tsv"
     shell:
         '''
-        # Filter tsv to these genes
-        Rscript scripts/filter_genes.R {input.tsv} {config[zthreshold]} {config[nout_std_thresh]} > {output}
+        Rscript scripts/add_eout.R {input.tsv} {input.scores} {config[zthreshold]} {config[nout_std_thresh]} > {output}
         '''
 
 # Label individuals with the same set of variants within each gene window.
 rule label_pairs:
     input:
-        "data/watershed/{prefix}.agg.filt.tsv",
+        "data/watershed/{prefix}.agg.tsv",
     output:
-        "data/watershed/{prefix}.agg.filt.pairlabel.tsv"
+        "data/watershed/{prefix}.agg.pairlabel.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
@@ -208,9 +176,9 @@ rule label_pairs:
 # Encode categorical variables (represented in a single column as comma-separated strings) as binary vectors.
 rule encode_categorical:
     input: 
-       tsv="data/watershed/{prefix}.agg.filt.pairlabel.tsv",
+       tsv="data/watershed/{prefix}.agg.pairlabel.tsv",
        cat=config["categorical"]
-    output: "data/watershed/{prefix}.agg.filt.pairlabel.cat.tsv"
+    output: "data/watershed/{prefix}.agg.pairlabel.cat.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
@@ -220,43 +188,41 @@ rule encode_categorical:
 # Impute missing values
 rule impute_missing:
     input:
-       tsv="data/watershed/{prefix}.agg.filt.pairlabel.cat.tsv",
+       tsv="data/watershed/{prefix}.agg.pairlabel.cat.tsv",
        impute=config["impute"]
-    output: "data/watershed/{prefix}.agg.filt.pairlabel.cat.impute.tsv"
+    output: "data/watershed/{prefix}.agg.pairlabel.cat.impute.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
-        uscript scripts/impute_missing.R {input.tsv} {input.impute} {config[num_outliers]} > {output}
+        Rscript scripts/impute_missing.R {input.tsv} {input.impute} {config[num_outliers]} > {output}
         '''
 
-# Drop and rename columns for Watershed
-rule format:
-    input:
-       tsv="data/watershed/{prefix}.agg.filt.pairlabel.cat.impute.tsv",
-       rename=config["rename"]
+# Create test/train split
+rule train_split:
+    input: "data/watershed/{prefix}.agg.pairlabel.cat.impute.tsv",
     output: 
-        tsv="data/watershed/{prefix}.agg.filt.pairlabel.cat.impute.format.tsv",
-        tsv_test="data/watershed/{prefix}.agg.filt.pairlabel.cat.impute.format.test.tsv",
-        tsv_train="data/watershed/{prefix}.agg.filt.pairlabel.cat.impute.format.train.tsv"
+        tsv_test="data/watershed/{prefix}.agg.pairlabel.cat.impute.test.tsv",
+        tsv_train="data/watershed/{prefix}.agg.pairlabel.cat.impute.train.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
-        Rscript scripts/train_split.R {input.tsv} {input.rename}
+        Rscript scripts/train_split.R {input}
         '''
 
 # Run Watershed
 rule watershed:
     input: 
-        full="data/watershed/{prefix}.pairlabel.cat.impute.format.tsv",
-        train="data/watershed/{prefix}.pairlabel.cat.impute.format.train.tsv",
-        test="data/watershed/{prefix}.pairlabel.cat.impute.format.test.tsv",
+        full="data/watershed/{prefix}.agg.pairlabel.cat.impute.tsv",
+        train="data/watershed/{prefix}.agg.pairlabel.cat.impute.train.tsv",
+        test="data/watershed/{prefix}.agg.pairlabel.cat.impute.test.tsv",
     output: 
-        eval="results/watershed/{seed}/{prefix}.pairlabel.cat.impute.format_evaluation_object.rds",
-        predict="results/watershed/{seed}/{prefix}.pairlabel.cat.impute.format_posterior_probability.txt"
+        eval="results/{prefix}/{seed}_evaluation_object.rds",
+        predict="results/{prefix}/{seed}_posterior_probability.txt"
     conda: "envs/watershed.yml"
     shell:
         '''
-        Rscript scripts/watershed.R {input.full} {input.train} {input.test} {config[num_outliers]} {config[pvalue]} {config[zthreshold]} {wildcards.seed} results/watershed/{wildcards.seed}
+        mkdir -p results/{wildcards.prefix}
+        Rscript scripts/watershed.R {input.full} {input.train} {input.test} {config[num_outliers]} {config[pvalue]} {config[zthreshold]} {wildcards.seed} results/{wildcards.prefix} 
         '''
 
 

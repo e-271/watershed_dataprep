@@ -1,5 +1,5 @@
-Sample,character
-Gene,factor
+SubjectID,character
+GeneName,factor
 CHROM,character
 POS,integer
 ALT,factor

@@ -11,12 +11,13 @@ zthresh = as.numeric(args[6])
 seed = as.numeric(args[7])
 out_dir = args[8]
 
-out_prefix = tools::file_path_sans_ext(basename(input))
+out_prefix = toString(seed)
 output=file.path(out_dir, out_prefix)
 
 # compute true outlier proportion for n2_pair_pvalue_fraction
-df = read.table(test,header=T)
-pvalue_prop = sum(abs(df$eOutliers) > zthresh) / dim(df)[1]
+df = read.table(input,header=T)
+pvalue_prop = sum(abs(df$eOutliers) < pvalue) / dim(df)[1]
+print(sprintf("total measured pvalue proportion %.4f", pvalue_prop) )
 
 if (num_outliers==1) {
 model_name = "RIVER"
