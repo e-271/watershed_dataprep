@@ -7,9 +7,8 @@ train = args[2]
 test = args[3]
 num_outliers = args[4]
 pvalue = as.numeric(args[5])
-zthresh = as.numeric(args[6])
-seed = as.numeric(args[7])
-out_dir = args[8]
+seed = as.numeric(args[6])
+out_dir = args[7]
 
 out_prefix = toString(seed)
 output=file.path(out_dir, out_prefix)
@@ -35,7 +34,7 @@ ws = evaluate_watershed(input_file = input,
                    l2_prior_parameter=0.01 # note: default is set too high in WatershedR package
            )
 
-ws = predict_watershed(train, input,
+ws = predict_watershed(train, test,
                    number_dimensions = as.numeric(num_outliers),
                    model_name = model_name,
                    output_prefix = output,

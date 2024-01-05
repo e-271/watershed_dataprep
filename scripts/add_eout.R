@@ -5,9 +5,10 @@ args = commandArgs(trailingOnly=TRUE)
  
 tsv=args[1]
 eout=args[2]
-zthresh=as.numeric(args[3])
+pvalue=as.numeric(args[3])
 nout_std_thresh=as.numeric(args[4])
 
+zthresh=abs(qnorm(pvalue/2))
 df=read.table(tsv, header=T, sep="\t", na="")
 edf=read.table(eout, header=T, sep="\t", na="")
 
@@ -46,8 +47,22 @@ df <- df %>% filter(SubjectID %in% under_outlier_thresh)
 d2 = dim(df)[1]
 warning(sprintf("filtered out %d/%d entries by max subject #outlier threshold",d1-d2,d1 ))
 
+# Print outlier proportion after filtering
+df <- df %>% mutate(eOut = abs(eOutliers) > zthresh)
+prop = df %>% summarize(prop = sum(eOut) / n())
+warning(sprintf("filtered outlier proportion: %.4f", prop[1,1]))
+
+# Rescale zscores
+df <- df %>% mutate(eOutliers=scale(eOutliers))
+
 # Convert zscores to signed pvalues
 df = df %>% mutate(eOutliers=sign(eOutliers) * pnorm(-abs(eOutliers))*2)
+
+# Print filtered/rescaled outlier proportion
+df <- df %>% mutate(eOut = abs(eOutliers) < 0.01)
+prop = df %>% summarize(prop = sum(eOut) / n())
+df <- df %>% select(-eOut)
+warning(sprintf("filtered outlier proportion after rescaling: %.4f", prop[1,1]))
 
 write.table(df,"",quote=FALSE,row.names=FALSE,na="",sep="\t")
 

@@ -6,7 +6,7 @@ tsv=args[1]
 impute=read.csv(args[2],header=FALSE, row.names=1)
 nout=as.numeric(args[3])
 
-df=read.table(tsv, fill=TRUE, header=1, sep="\t")
+df=read.table(tsv, header=1, sep="\t",na=c("", "NA"))
 
 # Replace missing values with imputation values
 impute_cols=intersect(colnames(df), row.names(impute))

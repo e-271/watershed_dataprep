@@ -32,7 +32,7 @@ to_cat = function(df, col_name, drop_cols) {
     return(df_cat)
 }
 
-df=read.table(tsv, fill=TRUE, header=1,sep="\t",na=c("", "NA"))
+df=read.table(tsv, header=1,sep="\t",na=c("", "NA"))
 categ=read.table(config,row.names=1,header=1,fill=TRUE)
 for (col in row.names(categ)) {
   drop_cols = unlist(strsplit(categ[col,],","))

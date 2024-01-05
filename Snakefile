@@ -152,13 +152,13 @@ rule aggregate:
 # Add eOutliers and apply eOutlier filtering criteria.
 rule add_eoutliers:
     input: 
-        tsv="data/watershed/{prefix}.{cfg}.agg.tsv",
-        scores="data/outliers/{prefix}.eOutliers.tsv"
+        tsv="data/watershed/{prefix}.agg.tsv",
+        scores="data/eoutliers/{prefix}.eOutliers.tsv"
     output:
-        "data/watershed/{prefix}.{cfg}.eOutliers.agg.tsv"
+        "data/watershed/{prefix}.eOutliers.agg.tsv"
     shell:
         '''
-        Rscript scripts/add_eout.R {input.tsv} {input.scores} {config[zthreshold]} {config[nout_std_thresh]} > {output}
+        Rscript scripts/add_eout.R {input.tsv} {input.scores} {config[pvalue]} {config[nout_std_thresh]} > {output}
         '''
 
 # Add sOutliers and adjust minimum empirical pvalues.
@@ -234,7 +234,7 @@ rule watershed:
     shell:
         '''
         mkdir -p results/{wildcards.prefix}
-        Rscript scripts/watershed.R {input.full} {input.train} {input.test} {config[num_outliers]} {config[pvalue]} {config[zthreshold]} {wildcards.seed} results/{wildcards.prefix} 
+        Rscript scripts/watershed.R {input.full} {input.train} {input.test} {config[num_outliers]} {config[pvalue]} {wildcards.seed} results/{wildcards.prefix} 
         '''
 
 
