@@ -1,0 +1,5 @@
+Name,Type
+X1000G.ID,Sample
+Gender,Binary
+Hologic.randomized.extraction.batch,Categorical
+cumulative.sequencing.pool.number,Categorical

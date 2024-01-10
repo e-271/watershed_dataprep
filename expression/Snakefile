@@ -1,0 +1,94 @@
+""" Residualize expression by covariates, and call outliers. """
+
+# Get top eQTL per gene & output as a bed file.
+rule top_eqtl_per_gene:
+    input: "data/expression/{prefix}.eQTL.txt"
+    output: "data/expression/{prefix}.top_eQTL.bed"
+    shell:
+        '''
+        Rscript scripts/top_eqtl.R {input} > {output}
+        '''
+
+# Get sample genotypes for top1 eQTLs.
+rule eqtl_genotypes:
+    input: 
+        vcf="data/vcf/{prefix}.fillaf.vcf.gz",
+        bed="data/expression/{prefix}.top_eQTL.bed"
+    output: "data/expression/{prefix}.top_eQTL.vcf"
+    shell:
+        '''
+        # TODO need to make sure we're getting the correct alt allele here, I think this will just match by pos.
+        bedtools intersect -a {input.vcf} -b {input.bed} -wa -f 1 -r > {output}
+        '''
+
+# Filter rnaseq counts to protein_coding / lincRNA genes, and drop genes with low counts.
+# TODO move min_counts into a config file, should be 6 for RNASeQC and 3 for HTSeq.
+rule filter_genes:
+    input:
+        gencode="data/gencode/gencode.v27.annotation.chr-renamed.protein_coding.lincRNA.bed",
+        counts="data/expression/rawGeneCounts.csv"
+    output: "data/expression/rawGeneCounts.protein_coding.lincRNA.csv"
+    shell:
+        '''
+        Rscript scripts/filter_genes.R {input.counts} {input.gencode} 3 > {output}
+        '''
+
+# Normalize raw counts using TPM & filter to genes with normalized counts >0.1 for 20% of subjects.
+# TODO I don't recall how I generated the gene_lengths file, track it down.
+rule normalize_counts:
+    input: 
+        gene_length="data/gencode/gencode.v27.annotation.chr-renamed.gene_lengths.tsv",
+        counts="data/expression/rawGeneCounts.protein_coding.lincRNA.csv"
+    output: "data/expression/geneCounts.tpm.protein_coding.lincRNA.csv"
+    shell:
+        '''
+        Rscript scripts/normalize_counts.R {input.counts} {input.gene_length} median 0.1 0.2 > {output}
+        '''
+
+# Calculate top PCs over normalized count matrix.
+rule pca:
+     input: "data/expression/geneCounts.tpm.protein_coding.lincRNA.csv"
+     output: "data/expression/expressionPCs.tsv"
+     shell:
+        '''
+        Rscript scripts/pca.R {input} 30 > {output}
+        '''
+
+# Filter to desired covariates & convert to desired type.
+rule format_covariates:
+    input: "data/expression/metadata.csv",
+    output: "data/expression/covariates.known.tsv"
+    shell:
+        '''
+        Rscript scripts/format_covs.R {input} config/covariates > {output}
+        '''
+
+# Combine known covariates & hidden covariates.
+# Filters out known covariates that have high overlap with PCs.
+rule combine_covariates:
+    input: 
+        cov="data/expression/covariates.known.tsv",
+        gpc="data/expression/geneticPCs.tsv",
+        pca="data/expression/expressionPCs.tsv"
+    output: "data/expression/covariates.combined.tsv"
+    shell:
+        '''
+        Rscript scripts/combine_covs.R {input.cov} {input.gpc} {input.pca} 8 > {output}
+        '''
+
+# Calculate residuals
+# TODO add eQTLs
+rule residualize:
+    input: 
+        covs="data/expression/covariates.combined.tsv",
+        cts="data/expression/geneCounts.tpm.protein_coding.lincRNA.csv"
+    output: "data/expression/residuals.tsv"
+    shell:
+        '''
+        Rscript scripts/residuals.R {input.covs} {input.cts}
+        '''
+
+
+
+
+
