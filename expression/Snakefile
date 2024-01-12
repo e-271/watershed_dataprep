@@ -1,28 +1,46 @@
 """ Residualize expression by covariates, and call outliers. """
+configfile: "config/config.yaml"
 
 # Get top eQTL per gene & output as a bed file.
 rule top_eqtl_per_gene:
     input: "data/expression/{prefix}.eQTL.txt"
-    output: "data/expression/{prefix}.top_eQTL.bed"
+    output: 
+        bed="data/expression/{prefix}.top_eQTL.bed",
+        sorted=temp("data/expression/{prefix}.top_eQTL.sorted.bed"),
+        sortedgz="data/expression/{prefix}.top_eQTL.sorted.bed.gz"
     shell:
         '''
-        Rscript scripts/top_eqtl.R {input} > {output}
+        Rscript scripts/top_eqtl.R {input} > {output.bed}
+        cat {output.bed} | sort -g -k 1 -k 2 > {output.sorted}
+        bgzip {output.sorted}
+        tabix {output.sortedgz}
         '''
 
 # Get sample genotypes for top1 eQTLs.
 rule eqtl_genotypes:
     input: 
-        vcf="data/vcf/{prefix}.fillaf.vcf.gz",
+        vcf="data/vcf/original/{prefix}.vcf.gz",
         bed="data/expression/{prefix}.top_eQTL.bed"
-    output: "data/expression/{prefix}.top_eQTL.vcf"
+    output:
+        norm="data/vcf/{prefix}.norm.vcf.gz",
+        eqtl="data/expression/{prefix}.norm.top_eQTL.vcf.gz"
     shell:
         '''
-        # TODO need to make sure we're getting the correct alt allele here, I think this will just match by pos.
-        bedtools intersect -a {input.vcf} -b {input.bed} -wa -f 1 -r > {output}
+        # Rename chromosome & filter vcf to PASS sites 
+        for l in {{1..22}} X Y; do echo chr$l $l; done > rename_chr.tmp
+        bcftools norm -m -any {input.vcf} |
+            bcftools annotate --rename-chrs rename_chr.tmp -o {output.norm}
+        tabix {output.norm}
+
+        # Subset to top eQTL regions & annotate eQTL gene / pvalue.
+        echo '##INFO=<ID=eQTL_gene,Number=1,Type=String,Description="eQTL gene for this locus.">' > header.tmp
+        echo '##INFO=<ID=eQTL_pvalue,Number=1,Type=String,Description="eQTL pvalue for this locus.">' >> header.tmp
+        bcftools view --regions-file {input.bed} -f PASS -i 'AC>0 & F_MISSING<0.1' {output.norm} | 
+            bcftools annotate -a {input.bed} -c CHROM,POS,-,REF,ALT,eQTL_gene,eQTL_pvalue,-  -h header.tmp -o {output.eqtl}
+        tabix {output.eqtl} 
         '''
 
 # Filter rnaseq counts to protein_coding / lincRNA genes, and drop genes with low counts.
-# TODO move min_counts into a config file, should be 6 for RNASeQC and 3 for HTSeq.
 rule filter_genes:
     input:
         gencode="data/gencode/gencode.v27.annotation.chr-renamed.protein_coding.lincRNA.bed",
@@ -30,7 +48,7 @@ rule filter_genes:
     output: "data/expression/rawGeneCounts.protein_coding.lincRNA.csv"
     shell:
         '''
-        Rscript scripts/filter_genes.R {input.counts} {input.gencode} 3 > {output}
+        Rscript scripts/filter_genes.R {input.counts} {input.gencode} {config[raw_min]} > {output}
         '''
 
 # Normalize raw counts using TPM & filter to genes with normalized counts >0.1 for 20% of subjects.
@@ -42,7 +60,7 @@ rule normalize_counts:
     output: "data/expression/geneCounts.tpm.protein_coding.lincRNA.csv"
     shell:
         '''
-        Rscript scripts/normalize_counts.R {input.counts} {input.gene_length} median 0.1 0.2 > {output}
+        Rscript scripts/normalize_counts.R {input.counts} {input.gene_length} {config[tpm_gene_length]} {config[tpm_min]} {config[tpm_min_proportion]} > {output}
         '''
 
 # Calculate top PCs over normalized count matrix.
@@ -51,7 +69,7 @@ rule pca:
      output: "data/expression/expressionPCs.tsv"
      shell:
         '''
-        Rscript scripts/pca.R {input} 30 > {output}
+        Rscript scripts/pca.R {input} > {output}
         '''
 
 # Filter to desired covariates & convert to desired type.
@@ -64,7 +82,7 @@ rule format_covariates:
         '''
 
 # Combine known covariates & hidden covariates.
-# Filters out known covariates that have high overlap with PCs.
+# Also filters out known covariates that have high overlap with PCs.
 rule combine_covariates:
     input: 
         cov="data/expression/covariates.known.tsv",
@@ -73,7 +91,7 @@ rule combine_covariates:
     output: "data/expression/covariates.combined.tsv"
     shell:
         '''
-        Rscript scripts/combine_covs.R {input.cov} {input.gpc} {input.pca} 8 > {output}
+        Rscript scripts/combine_covs.R {input.cov} {input.gpc} {input.pca} {config[genetic_pcs]} {config[expression_pcs]} > {output}
         '''
 
 # Calculate residuals
@@ -85,7 +103,7 @@ rule residualize:
     output: "data/expression/residuals.tsv"
     shell:
         '''
-        Rscript scripts/residuals.R {input.covs} {input.cts}
+        Rscript scripts/residuals.R {input.covs} {input.cts} > {output}
         '''
 
 

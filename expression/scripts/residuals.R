@@ -24,11 +24,9 @@ for (gene in colnames(df_ct)) {
     }
 }
 
-# Scale residuals fore each gene
-df_resid = scale(df_resid)
+# Scale residuals for each gene
+df_resid = data.frame(t(scale(df_resid)))
 
 # Output residuals
 write.table(df_resid,"",row.names=T,quote=F,sep='\t')
-
-
 

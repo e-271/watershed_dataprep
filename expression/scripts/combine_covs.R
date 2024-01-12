@@ -6,14 +6,16 @@ args = commandArgs(trailingOnly=TRUE)
 cov=args[1]
 gpc=args[2]
 pca=args[3]
-gpc_k=args[4]
+gpc_k=as.numeric(args[4])
+pc_k=as.numeric(args[5])
 
 cov_df=read.table(cov,header=T,row.names=1) %>% tibble::rownames_to_column("Sample")
 gpc_df=read.table(gpc,header=F,row.names=1) %>% tibble::rownames_to_column("Sample")
 pca_df=read.table(pca,header=T,row.names=1) %>% tibble::rownames_to_column("Sample")
 
-# Drop unused genetic PCs.
+# Drop unused PCs.
 gpc_df <- gpc_df[,1:gpc_k]
+pca_df <- pca_df[,1:pc_k]
 
 # Merge hidden covariates
 d1 = dim(pca_df)[1]
