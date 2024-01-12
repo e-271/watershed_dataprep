@@ -8,12 +8,13 @@ IDS = [os.path.basename(f).strip('.junc') for f in open(jf).read().splitlines()]
 # Run Leafcutter to cluster the .junc files.
 rule leafcutter:
     input: "data/splicing/juncfiles.txt"
-    output: gz=temp("data/splicing/Introns_perind_numers.counts.gz"),
-            ct="data/splicing/Introns_perind_numers.counts",
+    output: 
+        gz="data/splicing/Introns_perind_numers.counts.gz",
+        ct="data/splicing/Introns_perind_numers.counts"
     shell:
         '''
-        python2 leafcutter/clustering/leafcutter_cluster.py -j data/splicing/juncfiles.txt -m 50 -o data/splicing/Introns -l 500000
-        gunzip {output.gz}
+        python2 leafcutter/clustering/leafcutter_cluster.py -j data/splicing/juncfiles.txt -m 50 -o data/splicing/Introns -l 500000 --checkchrom True
+        gunzip -c {output.gz} > {output.ct}
         '''
 
 # Filter out junctions where all samples have <15 reads
@@ -22,7 +23,7 @@ rule filter_junctions:
     output: "data/splicing/introns.keep.junc"
     shell:
         '''
-        Rscript scripts/filter_junctions.sh {input} 15 > {output}
+        sh scripts/filter_junctions.sh {input} 15 > {output}
         '''
 
 # filter each .junc file by junctions selected in previous rule
@@ -53,10 +54,11 @@ rule leafcutter_filtered:
             ct="data/splicing/filtered.Introns_perind_numers.counts"
     shell:
         '''
-        python2 leafcutter/clustering/leafcutter_cluster.py -j data/splicing/juncfiles.filt.txt -m 50 -o data/splicing/filtered.Introns -l 500000
-        gunzip {output.gz}
+        python2 leafcutter/clustering/leafcutter_cluster.py -j data/splicing/juncfiles.filt.txt -m 50 -o data/splicing/filtered.Introns -l 500000 --checkchrom True
+        gunzip -c {output.gz} > {output.ct}
         '''
 
+# Removed all junctions in a cluster where 10% of the samples had less than 3 reads (summed across the cluster)
 rule filter_clusters:
     input: "data/splicing/filtered.Introns_perind_numers.counts"
     output: "data/splicing/cluster.filtered.Introns_perind_numers.counts"
@@ -84,6 +86,9 @@ rule map_genes:
         '''
 
 # Run SPOT & output empirical pvalues.
+# This has to be run manually in a separate py2 environment, since Snakemake only supports py3
+# Leafcutter is also in py2 but requires no packages so it's runnable in a py3 environment.
+# mamba create --name spot python=2.7 pystan numpy 
 rule spot:
     input: "data/splicing/gene.cluster.filtered.Introns_perind_numers.counts"
     output: "data/splicing/out_empirical_pvalue_gene.tsv"

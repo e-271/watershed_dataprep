@@ -1,4 +1,3 @@
-#!/bin/bash
 input=$1
 min_reads=$2
 
