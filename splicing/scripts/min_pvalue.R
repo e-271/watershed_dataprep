@@ -17,6 +17,11 @@ pv <- pv %>% left_join(cg) %>% filter(gene != '.') #df %>% select(cluster,gene) 
 # minimum pvalue
 mpv <- pv %>% group_by(gene) %>%  summarize(across(where(is.numeric), min), nc=n())
 
+# Remove Ensembl gene version
+mpv <-  mpv %>%
+        separate_wider_delim(gene, delim='.', names=c("GeneName", "version")) %>%
+        select(-version) 
+
 # Needs to be adjusted later for a given pvalue threshold, using new threshold of 1 - (1 - z)^nc.
 write.table(mpv, "", row.names=F, sep='\t', quote=F)
 

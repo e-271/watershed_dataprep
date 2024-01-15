@@ -31,15 +31,16 @@ rule filter_juncfiles:
     input: 
         junc="data/splicing/junc/{id}.junc",
         keepjunc="data/splicing/introns.keep.junc"
-    output: "data/splicing/junc/{id}_filtered.junc"
+    output: "data/splicing/junc/filtered/{id}.junc"
     shell:
         '''
+          mkdir -p data/splicing/junc/filtered
           bedtools intersect -f 1 -r -a {input.junc} -b {input.keepjunc} -wa > {output}
         '''
 
 # Make list of filterd junction files.
 rule filter_juncfiles_filelist:
-    input: expand("data/splicing/junc/{id}_filtered.junc", id=IDS)
+    input: expand("data/splicing/junc/filtered/{id}.junc", id=IDS)
     output: "data/splicing/juncfiles.filt.txt"
     shell:
         '''
@@ -86,12 +87,11 @@ rule map_genes:
         '''
 
 # Run SPOT & output empirical pvalues.
-# This has to be run manually in a separate py2 environment, since Snakemake only supports py3
-# Leafcutter is also in py2 but requires no packages so it's runnable in a py3 environment.
+# Unfortunately this step has to be run manually in a separate py2 environment, since Snakemake only supports py3.
 # mamba create --name spot python=2.7 pystan numpy 
 rule spot:
     input: "data/splicing/gene.cluster.filtered.Introns_perind_numers.counts"
-    output: "data/splicing/out_empirical_pvalue_gene.tsv"
+    output: "data/splicing/out_emperical_pvalue.txt"
     shell:
         '''
         python2 SPOT/spot.py --juncfile {input} --outprefix data/splicing/out
@@ -101,7 +101,7 @@ rule spot:
 rule spot_min:
     input: 
          cluster="data/splicing/cluster_gene.tsv",
-         pval="data/splicing/out_empirical_pvalue_gene.tsv"
+         pval="data/splicing/out_emperical_pvalue.txt"
     output: "data/splicing/min_empirical_pvalue_gene.tsv"
     shell:
         '''
