@@ -1,43 +1,49 @@
 """ Residualize expression by covariates, and call outliers. """
 configfile: "config/config.yaml"
 
-# Get top eQTL per gene & output as a bed file.
+# Get top eQTL per gene & output as a tsv file.
 rule top_eqtl_per_gene:
-    input: "data/expression/{prefix}.eQTL.txt"
+    input: "data/expression/eQTL.txt"
     output: 
-        bed="data/expression/{prefix}.top_eQTL.bed",
-        sorted=temp("data/expression/{prefix}.top_eQTL.sorted.bed"),
-        sortedgz="data/expression/{prefix}.top_eQTL.sorted.bed.gz"
+        tsv="data/expression/top_eQTL.tsv",
+        sorted=temp("data/expression/top_eQTL.sorted.tsv"),
+        sortedgz="data/expression/top_eQTL.sorted.tsv.gz"
     shell:
         '''
-        Rscript scripts/top_eqtl.R {input} > {output.bed}
-        cat {output.bed} | sort -g -k 1 -k 2 > {output.sorted}
+        Rscript scripts/top_eqtl.R {input} > {output.tsv}
+        cat {output.tsv} | sort -g -k 1 -k 2 > {output.sorted}
         bgzip {output.sorted}
-        tabix {output.sortedgz}
+        tabix -s 1 -b 2 -e 3 {output.sortedgz}
         '''
 
 # Get sample genotypes for top1 eQTLs.
+# Input VCF should be quality-filtered, and multiallelic sites split with bcftools norm -m
 rule eqtl_genotypes:
     input: 
-        vcf="data/vcf/original/{prefix}.vcf.gz",
-        bed="data/expression/{prefix}.top_eQTL.bed"
+        vcf="data/vcf/30x.AFGR.norm.vcf.gz",
+        tsv="data/expression/top_eQTL.sorted.tsv.gz"
     output:
-        norm="data/vcf/{prefix}.norm.vcf.gz",
-        eqtl="data/expression/{prefix}.norm.top_eQTL.vcf.gz"
+        eqtl="data/expression/norm.top_eQTL.vcf.gz",
+        tsv="data/expression/genotypes.top_eQTL.tsv"
     shell:
         '''
-        # Rename chromosome & filter vcf to PASS sites 
-        for l in {{1..22}} X Y; do echo chr$l $l; done > rename_chr.tmp
-        bcftools norm -m -any {input.vcf} |
-            bcftools annotate --rename-chrs rename_chr.tmp -o {output.norm}
-        tabix {output.norm}
-
         # Subset to top eQTL regions & annotate eQTL gene / pvalue.
         echo '##INFO=<ID=eQTL_gene,Number=1,Type=String,Description="eQTL gene for this locus.">' > header.tmp
         echo '##INFO=<ID=eQTL_pvalue,Number=1,Type=String,Description="eQTL pvalue for this locus.">' >> header.tmp
-        bcftools view --regions-file {input.bed} -f PASS -i 'AC>0 & F_MISSING<0.1' {output.norm} | 
-            bcftools annotate -a {input.bed} -c CHROM,POS,-,REF,ALT,eQTL_gene,eQTL_pvalue,-  -h header.tmp -o {output.eqtl}
-        tabix {output.eqtl} 
+        bcftools view --regions-file {input.tsv} -f PASS -i 'AC>0 & F_MISSING<0.1' {input.vcf} | 
+            bcftools annotate -a {input.tsv} -c CHROM,POS,-,REF,ALT,eQTL_gene,eQTL_pvalue,-  -h header.tmp -o {output.eqtl}
+        tabix {output.eqtl}
+
+         bcftools query -f "[%SAMPLE\t%INFO/eQTL_gene\t%GT\n]" {output.eqtl} > {output.tsv} 
+        '''
+
+# Reformat genotype annotation to number of eQTL alleles, and format to 1 gene per line  
+rule format_eqtls:
+    input: "data/expression/genotypes.top_eQTL.tsv"
+    output: "data/expression/genotypes.top_eQTL.format.tsv"
+    shell:
+        '''
+        Rscript scripts/format_eqtls.R {input} > {output}
         '''
 
 # Filter rnaseq counts to protein_coding / lincRNA genes, and drop genes with low counts.
@@ -88,22 +94,22 @@ rule combine_covariates:
         cov="data/expression/covariates.known.tsv",
         gpc="data/expression/geneticPCs.tsv",
         pca="data/expression/expressionPCs.tsv"
-    output: "data/expression/covariates.combined.tsv"
+    output: "data/expression/covariates.combined.pcs{pc}.gpc{gpc}.tsv"
     shell:
         '''
-        Rscript scripts/combine_covs.R {input.cov} {input.gpc} {input.pca} {config[genetic_pcs]} {config[expression_pcs]} > {output}
+        Rscript scripts/combine_covs.R {input.cov} {input.gpc} {input.pca} {wildcards.gpc} {wildcards.pc} > {output}
         '''
 
 # Calculate residuals
-# TODO add eQTLs
 rule residualize:
     input: 
-        covs="data/expression/covariates.combined.tsv",
-        cts="data/expression/geneCounts.tpm.protein_coding.lincRNA.csv"
-    output: "data/expression/residuals.tsv"
+        covs="data/expression/covariates.combined.pcs{pc}.gpc{gpc}.tsv",
+        cts="data/expression/geneCounts.tpm.protein_coding.lincRNA.csv",
+        eqtls="data/expression/genotypes.top_eQTL.format.tsv"
+    output: "data/expression/residuals.pcs{pc}.gpc{gpc}.tsv"
     shell:
         '''
-        Rscript scripts/residuals.R {input.covs} {input.cts} > {output}
+        Rscript scripts/residuals.R {input.covs} {input.cts} {input.eqtls} > {output}
         '''
 
 

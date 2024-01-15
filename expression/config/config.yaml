@@ -5,8 +5,4 @@ tpm_gene_length: "median"
 tpm_min: 0.1
 tpm_min_proportion: 0.2
 
-# Hidden covariate parameters
-genetic_pcs: 8
-expression_pcs: 30
-
 
