@@ -8,7 +8,6 @@ gnomADg_AF_joint_asj,min
 gnomADg_AF_joint_eas,min
 gnomADg_AF_joint_fin,min
 gnomADg_AF_joint_nfe,min
-gnomADg_AF_joint_sas,min
 Consequence,vep_unique
 LoF,unique
 GC,max

@@ -34,7 +34,7 @@ ws = evaluate_watershed(input_file = input,
                    l2_prior_parameter=0.01 # note: default is set too high in WatershedR package
            )
 
-ws = predict_watershed(train, test,
+ws = predict_watershed(train, input,
                    number_dimensions = as.numeric(num_outliers),
                    model_name = model_name,
                    output_prefix = output,

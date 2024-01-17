@@ -17,8 +17,7 @@ sdf <- sdf %>%
 
 # Reshape to 1 gene/sample per row
 sdf <- sdf %>% 
-        pivot_longer(!gene & !adj_pthresh, names_to="SubjectID", values_to="sOutliers") %>% 
-        rename(GeneName=gene)
+        pivot_longer(!GeneName & !adj_pthresh, names_to="SubjectID", values_to="sOutliers")
 
 # Adjust sOutlier pvalues by adjusted threshold
 sdf <- sdf %>% 

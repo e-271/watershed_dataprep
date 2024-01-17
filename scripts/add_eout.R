@@ -53,7 +53,7 @@ prop = df %>% summarize(prop = sum(eOut) / n())
 warning(sprintf("filtered outlier proportion: %.4f", prop[1,1]))
 
 # Rescale zscores
-df <- df %>% mutate(eOutliers=scale(eOutliers))
+# df <- df %>% mutate(eOutliers=scale(eOutliers))
 
 # Convert zscores to signed pvalues
 df = df %>% mutate(eOutliers=sign(eOutliers) * pnorm(-abs(eOutliers))*2)

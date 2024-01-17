@@ -128,20 +128,23 @@ rule gencode:
     output:
         bed="data/gencode/{prefix}.bed",
         filt_bed="data/gencode/{prefix}.protein_coding.lincRNA.bed",
+        filt_bed_nov="data/gencode/{prefix}.protein_coding.lincRNA.rm_ensemble_version.bed",
     conda: "envs/watershed.yml"
     shell:
         '''
         # Generate gene position bedfile 
         gtftools -g {output.bed} {input}
-        # Filter, convert to list of gene names, and remove version number (.*)
-        cat {output.bed} | awk '{{if($7 == "lincRNA" || $7 == "protein_coding") {{print $0}} }}' | sed 's/\.[0-9]*//g' > {output.filt_bed}
+        # Filter by lincRNA / protein-coding convert to list of gene names
+        cat {output.bed} | awk '{{if($7 == "lincRNA" || $7 == "protein_coding") {{print $0}} }}'  > {output.filt_bed}
+        # Remove ENSEMBL version number (.*) for matching with VEP gene annotations.
+        cat {output.filt_bed} | sed 's/\.[0-9]*//g' > {output.filt_bed_nov}
         '''
 
 # Aggregate each individual's rare variants over each gene.
 rule aggregate:
     input: 
         tsv="data/watershed/{prefix}.all.tsv",
-        pc_linc=expand("data/gencode/{gencode}.protein_coding.lincRNA.bed", gencode=config["gencode"])
+        pc_linc=expand("data/gencode/{gencode}.protein_coding.lincRNA.rm_ensemble_version.bed", gencode=config["gencode"])
     output: "data/watershed/{prefix}.agg.tsv"
     conda: "envs/watershed.yml"
     shell:
