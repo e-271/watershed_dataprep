@@ -13,6 +13,13 @@ df_ct <- data.frame(t(read.csv(cts, header=T, row.names=1)))
 df_ct = df_ct[row.names(df_cov),]
 df_eqtls <- read.table(eqtls, header=T, row.names=1)
 df_eqtls = df_eqtls[row.names(df_cov),]
+df_eqtls = scale(df_eqtls)
+
+# Check overlap between counts matrix and eQTLs.
+cts_genes = colnames(df_ct)
+eqtls_genes = colnames(df_eqtls)
+shared_genes = intersect(cts_genes,eqtls_genes)
+warning(sprintf("%d/%d of RNA-seq measured protein-coding/lincRNA genes have a top eQTL.", length(shared_genes), length(cts_genes)))
 
 # initialize residual matrix
 df_resid = data.frame(df_ct)
