@@ -1,4 +1,8 @@
 
+# Gencode configuration
+gencode_version: 27
+gene_type: "protein_coding.lincRNA"
+
 # Expression count filters
 raw_min: 3
 tpm_gene_length: "median"

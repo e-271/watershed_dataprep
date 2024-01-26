@@ -13,7 +13,7 @@ df_ct <- data.frame(t(read.csv(cts, header=T, row.names=1)))
 df_ct = df_ct[row.names(df_cov),]
 df_eqtls <- read.table(eqtls, header=T, row.names=1)
 df_eqtls = df_eqtls[row.names(df_cov),]
-df_eqtls = scale(df_eqtls)
+df_eqtls = data.frame(scale(df_eqtls))
 
 # Check overlap between counts matrix and eQTLs.
 cts_genes = colnames(df_ct)

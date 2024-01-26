@@ -122,18 +122,26 @@ rule tsv_format:
         '''
 
 # Format gencode file to use in gene-level aggregation. Filters by protein-coding / lincRNA genes.
+# Note that for newer gencode version (> 37, possibly earlier versions) the 'lincRNA' gene_type annotation
+# is removed and all lincRNA are categorized under lncRNA.
 rule gencode:
     input:
-        expand("data/gencode/{prefix}.gtf", prefix=config["gencode"])
+        "data/gencode/{prefix}.gtf"
     output:
-        bed="data/gencode/{prefix}.bed",
-        filt_bed="data/gencode/{prefix}.protein_coding.lincRNA.bed",
-        filt_bed_nov="data/gencode/{prefix}.protein_coding.lincRNA.rm_ensemble_version.bed",
+        gtf="data/gencode/{prefix}.chr-renamed.gtf",
+        gene_len="data/gencode/{prefix}.chr-renamed.gene_lengths.tsv",
+        bed="data/gencode/{prefix}.chr-renamed.bed",
+        filt_bed="data/gencode/{prefix}.chr-renamed.protein_coding.lincRNA.bed",
+        filt_bed_nov="data/gencode/{prefix}.chr-renamed.protein_coding.lincRNA.rm_ensemble_version.bed",
     conda: "envs/watershed.yml"
     shell:
         '''
+        # Rename chromosome
+        cat {input} | sed 's/^chr//g' > {output.gtf}
+        # Calculate gene lengths for tpm
+        gtftools -l {output.gene_len} {output.gtf}
         # Generate gene position bedfile 
-        gtftools -g {output.bed} {input}
+        gtftools -g {output.bed} {output.gtf}
         # Filter by lincRNA / protein-coding convert to list of gene names
         cat {output.bed} | awk '{{if($7 == "lincRNA" || $7 == "protein_coding") {{print $0}} }}'  > {output.filt_bed}
         # Remove ENSEMBL version number (.*) for matching with VEP gene annotations.
@@ -156,9 +164,9 @@ rule aggregate:
 rule add_eoutliers:
     input: 
         tsv="data/watershed/{prefix}.agg.tsv",
-        scores="data/eoutliers/{prefix}.eOutliers.tsv"
+        scores="data/eoutliers/{prefix}.{cfg}.eOutliers.tsv"
     output:
-        "data/watershed/{prefix}.eOutliers.agg.tsv"
+        "data/watershed/{prefix}.{cfg}.eOutliers.agg.tsv"
     shell:
         '''
         Rscript scripts/add_eout.R {input.tsv} {input.scores} {config[pvalue]} {config[nout_std_thresh]} > {output}

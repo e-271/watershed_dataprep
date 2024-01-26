@@ -49,21 +49,20 @@ rule format_eqtls:
 # Filter rnaseq counts to protein_coding / lincRNA genes, and drop genes with low counts.
 rule filter_genes:
     input:
-        gencode="data/gencode/gencode.v27.annotation.chr-renamed.protein_coding.lincRNA.bed",
+        gencode=expand("data/gencode/gencode.v{ver}.annotation.chr-renamed.{{cfg}}.bed", ver=config["gencode_version"]),
         counts="data/expression/rawGeneCounts.csv"
-    output: "data/expression/rawGeneCounts.protein_coding.lincRNA.csv"
+    output: "data/expression/rawGeneCounts.{cfg}.csv"
     shell:
         '''
         Rscript scripts/filter_genes.R {input.counts} {input.gencode} {config[raw_min]} > {output}
         '''
 
 # Normalize raw counts using TPM & filter to genes with normalized counts >0.1 for 20% of subjects.
-# TODO I don't recall how I generated the gene_lengths file, track it down.
 rule normalize_counts:
     input: 
-        gene_length="data/gencode/gencode.v27.annotation.chr-renamed.gene_lengths.tsv",
-        counts="data/expression/rawGeneCounts.protein_coding.lincRNA.csv"
-    output: "data/expression/geneCounts.tpm.protein_coding.lincRNA.csv"
+        gene_length=expand("data/gencode/gencode.v{ver}.annotation.chr-renamed.gene_lengths.tsv", ver=config["gencode_version"]),
+        counts="data/expression/rawGeneCounts.{cfg}.csv"
+    output: "data/expression/geneCounts.tpm.{cfg}.csv"
     shell:
         '''
         Rscript scripts/normalize_counts.R {input.counts} {input.gene_length} {config[tpm_gene_length]} {config[tpm_min]} {config[tpm_min_proportion]} > {output}
@@ -71,8 +70,8 @@ rule normalize_counts:
 
 # Calculate top PCs over normalized count matrix.
 rule pca:
-     input: "data/expression/geneCounts.tpm.protein_coding.lincRNA.csv"
-     output: "data/expression/expressionPCs.tsv"
+     input: "data/expression/geneCounts.tpm.{cfg}.csv"
+     output: "data/expression/expressionPCs.{cfg}.tsv"
      shell:
         '''
         Rscript scripts/pca.R {input} > {output}
@@ -93,26 +92,22 @@ rule combine_covariates:
     input: 
         cov="data/expression/covariates.known.tsv",
         gpc="data/expression/geneticPCs.tsv",
-        pca="data/expression/expressionPCs.tsv"
-    output: "data/expression/covariates.combined.pcs{pc}.gpc{gpc}.tsv"
+        pca="data/expression/expressionPCs.{cfg}.tsv"
+    output: "data/expression/covariates.combined.{cfg}.pcs{pc}.gpc{gpc}.tsv"
     shell:
         '''
         Rscript scripts/combine_covs.R {input.cov} {input.gpc} {input.pca} {wildcards.gpc} {wildcards.pc} > {output}
         '''
 
-# Calculate residuals
-rule residualize:
+# Calculate residuals (with eQTLs)
+rule residualize_eqtl:
     input: 
         covs="data/expression/covariates.combined.pcs{pc}.gpc{gpc}.tsv",
-        cts="data/expression/geneCounts.tpm.protein_coding.lincRNA.csv",
+        cts="data/expression/geneCounts.tpm.{cfg}.csv",
         eqtls="data/expression/genotypes.top_eQTL.format.tsv"
-    output: "data/expression/residuals.pcs{pc}.gpc{gpc}.tsv"
+    output: "data/expression/residuals.eqtls.{cfg}.pcs{pc}.gpc{gpc}.tsv"
     shell:
         '''
         Rscript scripts/residuals.R {input.covs} {input.cts} {input.eqtls} > {output}
         '''
-
-
-
-
 
