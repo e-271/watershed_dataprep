@@ -24,9 +24,7 @@ while IFS=',' read -r anno merge; do
     merge_logic="${merge_logic}${anno}:${merge},"
 done < $cadd_cols
 
-for l in {1..22} X Y; do echo chr$l $l; done >  ${vcf}.rename_chr.tmp
-bcftools annotate --rename-chrs  ${vcf}.rename_chr.tmp $vcf | bcftools annotate -a $cadd -c ${cols} -h  ${vcf}.header.tmp --merge-logic ${merge_logic} --min-overlap 1 
+bcftools annotate $vcf -a $cadd -c ${cols} -h ${vcf}.header.tmp --merge-logic ${merge_logic} --min-overlap 1 
 
-rm  ${vcf}.rename_chr.tmp  ${vcf}.header.tmp  ${vcf}.all_columns.tmp
-
+rm  ${vcf}.header.tmp  ${vcf}.all_columns.tmp
 

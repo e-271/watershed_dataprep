@@ -23,7 +23,8 @@ categorical: config/categorical
 impute: config/impute
 drop: config/drop
 rename: config/rename
-nout_std_thresh: "2.5"
-pvalue: 0.01
+pvalue: 0.0027
+nout_std_thresh: "1.5"
+C: 10
 num_outliers: "2" # number of outlier signals
 

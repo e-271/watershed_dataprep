@@ -56,6 +56,7 @@ rule vep:
 --force_overwrite \
 --offline \
 --dir_cache data/vep \
+--regulatory \
 --dir_plugins {config[vep_plugins_dir]} \
 --custom file={config[gnomad]},short_name=gnomADg,format=vcf,type=exact,coords=0,fields=AF_joint_afr%AF_joint_amr%AF_joint_asj%AF_joint_eas%AF_joint_sas%AF_joint_fin%AF_joint_nfe \
 --plugin LoF,\
@@ -181,7 +182,7 @@ rule add_soutliers:
         "data/watershed/{prefix}.{cfg}.sOutliers.agg.tsv"
     shell:
         '''
-        Rscript scripts/add_sout.R {input.tsv} {input.scores} {config[pvalue]} > {output}
+        Rscript scripts/add_sout.R {input.tsv} {input.scores} {config[pvalue]} {config[nout_std_thresh]} > {output}
         '''
 
 # Label individuals with the same set of variants within each gene window.
@@ -240,12 +241,16 @@ rule watershed:
         test="data/watershed/{prefix}.agg.pairlabel.cat.impute.test.tsv",
     output: 
         eval="results/{prefix}/{seed}_evaluation_object.rds",
-        predict="results/{prefix}/{seed}_posterior_probability.txt"
+        predict="results/{prefix}/{seed}_posterior_probability.txt",
+        cfg="results/{prefix}/{seed}_config.txt"
     conda: "envs/watershed.yml"
     shell:
         '''
         mkdir -p results/{wildcards.prefix}
-        Rscript scripts/watershed.R {input.full} {input.train} {input.test} {config[num_outliers]} {config[pvalue]} {wildcards.seed} results/{wildcards.prefix} 
+        Rscript scripts/watershed.R {input.full} {input.train} {input.test} {config[num_outliers]} {config[pvalue]} {config[seed]} {config[C]} results/{wildcards.prefix}
+        echo "p\t{config[pvalue]}" > {output.cfg}
+        echo "C\t{config[C]}" >> {output.cfg}
+        echo "nout_std_thresh\t{config[nout_std_thresh]}" >> {output.cfg}
         '''
 
 

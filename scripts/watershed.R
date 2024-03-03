@@ -8,7 +8,8 @@ test = args[3]
 num_outliers = args[4]
 pvalue = as.numeric(args[5])
 seed = as.numeric(args[6])
-out_dir = args[7]
+C = as.numeric(args[7])
+out_dir = args[8]
 
 out_prefix = toString(seed)
 output=file.path(out_dir, out_prefix)
@@ -31,6 +32,7 @@ ws = evaluate_watershed(input_file = input,
                    output_prefix = output,
                    n2_pair_pvalue_fraction = pvalue_prop,
                    binary_pvalue_threshold = pvalue,
+                   dirichlet_prior = C,
                    l2_prior_parameter=0.01 # note: default is set too high in WatershedR package
            )
 
@@ -39,6 +41,7 @@ ws = predict_watershed(train, input,
                    model_name = model_name,
                    output_prefix = output,
                    binary_pvalue_threshold = pvalue,
+                   dirichlet_prior_parameter = C,
                    l2_prior_parameter=0.01
            )  
 

@@ -59,7 +59,7 @@ warning(sprintf("filtered outlier proportion: %.4f", prop[1,1]))
 df = df %>% mutate(eOutliers=sign(eOutliers) * pnorm(-abs(eOutliers))*2)
 
 # Print filtered/rescaled outlier proportion
-df <- df %>% mutate(eOut = abs(eOutliers) < 0.01)
+df <- df %>% mutate(eOut = abs(eOutliers) < pvalue)
 prop = df %>% summarize(prop = sum(eOut) / n())
 df <- df %>% select(-eOut)
 warning(sprintf("filtered outlier proportion after rescaling: %.4f", prop[1,1]))

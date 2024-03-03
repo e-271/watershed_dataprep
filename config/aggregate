@@ -6,9 +6,10 @@ gnomADg_AF_joint_afr,min
 gnomADg_AF_joint_amr,min
 gnomADg_AF_joint_asj,min
 gnomADg_AF_joint_eas,min
+gnomADg_AF_joint_sas,min
 gnomADg_AF_joint_fin,min
 gnomADg_AF_joint_nfe,min
-Consequence,vep_unique
+Consequence,unique
 LoF,unique
 GC,max
 CpG,max
