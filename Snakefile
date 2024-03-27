@@ -1,6 +1,42 @@
 """ Prepare Watershed input data from a vcf. """
 configfile: "config/config.yaml"
 
+# filtering for pair labels
+rule filter_infreq_indel:
+    input: "data/vcf/{prefix}.vcf.gz"
+    output: "data/vcf/{prefix}.af.rare05.vcf.gz"
+    conda: "envs/watershed.yml"
+    shell:
+        '''
+        for l in {{1..22}} X Y; do echo chr$l $l; done > rename_chr.tmp
+        bcftools view  -f PASS -i 'AF<=0.05 & AC>0' {input.vcf} |
+            bcftools annotate --rename-chrs rename_chr.tmp |
+            bcftools +fill-tags -- -t AN,AC,AF,F_MISSING |
+            bcftools view -i 'AF<=0.05 & AC>0 & F_MISSING < 0.1' -o {output}
+        tabix {output}
+        '''
+
+# TSV Formatting for pare labels
+rule tsv_pairs:
+    input: "data/vcf/{prefix}.rare05.vcf.gz"
+    output: "data/watershed/{prefix}.rare05.pairs.all.tsv"
+    conda: "envs/watershed.yml"
+    shell:
+        '''
+        sh scripts/format_pairs.sh {input} config/format_pairs > {output}
+        '''
+
+# Aggregate for pair labels
+rule agg_pair:
+    input: tsv="data/watershed/{prefix}.rare05.pairs.all.tsv",
+            pc_linc=expand("data/gencode/{gencode}.protein_coding.lncRNA.rm_ensemble_version.bed", gencode=config["gencode"])
+    output: "data/watershed/{prefix}.agg.rare05.pairs.tsv"
+    conda: "envs/watershed.yml"
+    shell:
+        '''
+        Rscript scripts/agg.R {input.tsv} {input.pc_linc} config/aggregate_pairs config/types_pair {config[vep_window]} F > {output}
+        '''
+
 # Filter positions by MAF<0.01, AC>0, and <10% missing sample genotypes
 # Splits multi-allelic record into biallelic records (e.g. if ALT=T,A split into 2 records with ALT=T, ALT=A).
 rule filter_rare:
@@ -185,17 +221,18 @@ rule add_soutliers:
         Rscript scripts/add_sout.R {input.tsv} {input.scores} {config[pvalue]} {config[nout_std_thresh]} > {output}
         '''
 
-# Label individuals with the same set of variants within each gene window.
-rule label_pairs:
+# Label individuals with the same set of variants within each gene window. Includes infrequent variants & indels in pair labels. 
+rule label_pairs_sep:
     input:
-        "data/watershed/{prefix}.agg.tsv",
+        tsv="data/watershed/{prefix}.snp.eOutliers.sOutliers.agg.tsv",
+        pairs="data/watershed/{prefix}.agg.rare05.pairs.tsv"
     output:
-        "data/watershed/{prefix}.agg.pairlabel.tsv"
+        "data/watershed/{prefix}.snp.eOutliers.sOutliers.agg.pairlabel2.tsv"
     conda: "envs/watershed.yml"
     shell:
         '''
-        Rscript scripts/label_pairs.R {input} > {output}
-        ''' 
+        Rscript scripts/label_pairs.R {input.tsv} {input.pairs} > {output}
+        '''
 
 # Encode categorical variables (represented in a single column as comma-separated strings) as binary vectors.
 rule encode_categorical:
@@ -240,17 +277,13 @@ rule watershed:
         train="data/watershed/{prefix}.agg.pairlabel.cat.impute.train.tsv",
         test="data/watershed/{prefix}.agg.pairlabel.cat.impute.test.tsv",
     output: 
-        eval="results/{prefix}/{seed}_evaluation_object.rds",
-        predict="results/{prefix}/{seed}_posterior_probability.txt",
-        cfg="results/{prefix}/{seed}_config.txt"
+        eval="results/{prefix}_{tag}/{seed}_evaluation_object.rds",
+        predict="results/{prefix}_tag/{seed}_posterior_probability.txt",
     conda: "envs/watershed.yml"
     shell:
         '''
-        mkdir -p results/{wildcards.prefix}
-        Rscript scripts/watershed.R {input.full} {input.train} {input.test} {config[num_outliers]} {config[pvalue]} {config[seed]} {config[C]} results/{wildcards.prefix}
-        echo "p\t{config[pvalue]}" > {output.cfg}
-        echo "C\t{config[C]}" >> {output.cfg}
-        echo "nout_std_thresh\t{config[nout_std_thresh]}" >> {output.cfg}
+        mkdir -p results/{wildcards.prefix}_{wildcards.tag}
+        Rscript scripts/watershed.R {input.full} {input.train} {input.test} {config[num_outliers]} {config[pvalue]} {config[seed]} {config[C]} results/{wildcards.prefix}_{wildcards.tag}
         '''
 
 
