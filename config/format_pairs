@@ -1,0 +1,4 @@
+POS,unique
+ALT,unique
+CHROM,unique
+AF,min

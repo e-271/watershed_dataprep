@@ -1,0 +1,5 @@
+SubjectID,character
+CHROM,character
+POS,integer
+ALT,factor
+AF,double
